@@ -356,6 +356,26 @@ body[data-mode="run"] .alerts { display: none; }
   .card h2 { font-size: 22px; }
 }
 @media (prefers-reduced-motion: reduce) { .hbtn.warn, .toast { animation: none; } }
+
+/* ---------- botões numa faixa própria embaixo da rua, para não cobrir os zumbis ---------- */
+.game { display: flex; flex-direction: column; }
+.game canvas { flex: 1 1 0; min-height: 0; height: auto; }
+.hud.bottom {
+  position: relative; left: auto; right: auto; bottom: auto; flex: none;
+  flex-wrap: nowrap; justify-content: flex-start; gap: 6px;
+  padding: 7px 8px 6px; overflow-x: auto; scrollbar-width: none; pointer-events: auto;
+  background: linear-gradient(#4a3f5c, #2b2238); border-top: 3px solid #6a1f1f;
+}
+.hud.bottom::-webkit-scrollbar { display: none; }
+.hud.bottom .grp { flex-wrap: nowrap; flex: none; }
+.hud.bottom .grp.town-only:not(:first-child), .hud.bottom .grp.run-only { margin-left: auto; }
+.hud.bottom .hbtn { white-space: nowrap; }
+/* alertas "!" no céu, à direita, longe de onde os zumbis chegam */
+.alerts { left: auto; right: 22px; top: 104px; flex-direction: row; gap: 26px; }
+@media (max-height: 500px) {
+  .hbtn { font-size: 13px; padding: 5px 8px 3px; }
+  .alert { width: 38px; height: 38px; font-size: 22px; }
+}
 </style>
 
 </head>
@@ -4144,7 +4164,7 @@ body[data-mode="run"] .alerts { display: none; }
   function updateHUD() {
     if (!S) return;
     { const r = document.querySelector('.hud.top'); if (r) hudTop = Math.max(58, r.getBoundingClientRect().bottom - cv.getBoundingClientRect().top + 8); }
-    $('hAlerts').style.top = (camX < GX - 160 && mode !== 'run' ? hudTop + 112 * scale : hudTop + 6) + 'px';
+    $('hAlerts').style.top = (hudTop + 46 * scale) + 'px'; // logo abaixo do painel do portão
     $('hCoins').textContent = fmt(S.coins);
     $('hGoods').textContent = S.goods;
     $('hTokens').textContent = S.tokens;

@@ -1,7 +1,7 @@
 // Guarda o jogo no aparelho para funcionar sem internet.
 // A página e o manifesto vêm sempre da internet quando possível (assim as atualizações chegam na hora);
 // o resto usa o que está guardado e atualiza em segundo plano. Sem internet, tudo vem do que foi guardado.
-const VERSION = 'barricada-v2';
+const VERSION = 'barricada-v3';
 const SHELL = ['./', 'index.html', 'app.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

@@ -572,7 +572,7 @@ body[data-mode="run"] .alerts { display: none; }
   // ---------- Extensões ----------
   // Menus (XS), ações de botão (XA) e ganchos usados pelos sistemas novos (clima, eventos, minijogos...).
   const XS = {}, XA = {};
-  const HOOK = { state: [], update: [], dawn: [], night: [], kill: [], begin: [], worldBack: [], worldFront: [], screen: [], zspeed: [], biz: [], hud: [], spawn: [] };
+  const HOOK = { state: [], update: [], dawn: [], night: [], kill: [], begin: [], worldBack: [], worldFront: [], screen: [], zspeed: [], biz: [], hud: [], spawn: [], hit: [], dmg: [] };
   const runHooks = (name, ...a) => { for (const f of HOOK[name]) f(...a); };
   const mulHooks = (name, ...a) => HOOK[name].reduce((m, f) => m * f(...a), 1);
 
@@ -1101,8 +1101,8 @@ body[data-mode="run"] .alerts { display: none; }
         puffE(c, 10, 10);
       }
     }
-    const dmg = W.dmg * dmgMul();
-    const visible = z => !z.dead && !(S.fog > 0 && z.x > GATE_X + 420) && gp(z.x, 0).d < 1.02 && !(W.range && z.x > GATE_X + DEF_W + W.range);
+    const dmg = W.dmg * dmgMul() * mulHooks('dmg');
+    const visible = z => !z.dead && !(S.fog > 0 && !S.up.holofote && z.x > GATE_X + 420) && gp(z.x, 0).d < 1.02 && !(W.range && z.x > GATE_X + DEF_W + W.range);
     const head = z => { const sz = ZT[z.type].size, q = gp(z.x, z.lane, 40 * sz); return { x: q.x, y: q.y, r: 20 * sz * q.s, z }; };
     let hits;
     if (W.pierce) {
@@ -1123,6 +1123,7 @@ body[data-mode="run"] .alerts { display: none; }
       if (W.burn) { z.burn = 3; z.burnD = W.burn * dmgMul(); }
       if (W.freeze) z.slowT = W.freeze;
     }
+    runHooks('hit', W, hits, vx, vy);
     if (W.chain && hits.length) {
       let from = hits[0];
       const done = new Set(hits);
@@ -3862,6 +3863,7 @@ body[data-mode="run"] .alerts { display: none; }
     const G = (y0, y1, a, b) => grad(0, y0, 0, y1, a, b);
     const grip = (x0, c = '#7a4424') => { ctx.beginPath(); ctx.moveTo(x0, -1); ctx.lineTo(x0 - 7, 13); ctx.quadraticCurveTo(x0 - 3, 17, x0 + 2, 15); ctx.lineTo(x0 + 7, 0); ctx.closePath(); O(c); ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.lineWidth = 0.8; for (let k = 3; k < 13; k += 3) { ctx.beginPath(); ctx.moveTo(x0 - k * 0.5, k); ctx.lineTo(x0 + 5 - k * 0.4, k); ctx.stroke(); } };
     const guard = x0 => { ctx.beginPath(); ctx.arc(x0, 1, 4.5, 0, Math.PI); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke(); };
+    if (WEAPON_X[id]) { WEAPON_X[id](O, G, grip, guard); ctx.restore(); return; }
     switch (id) {
       case 'pistola':
         grip(-4, '#3a3a44'); guard(5);
@@ -4634,7 +4636,8 @@ body[data-mode="run"] .alerts { display: none; }
       <div class="row"><button class="btn green" data-act="repair" data-primary ${miss < 1 || S.coins < cost ? 'disabled' : ''}>Consertar tudo · ${coinBtn(cost)}</button>
       <button class="btn teal" data-act="repairT" ${miss < 1 || S.tokens < 2 ? 'disabled' : ''}>Consertar tudo · 2 ${TOKEN_SVG}</button></div>
       <p class="note">Funcionários de uma Serralheria consertam o portão de graça, aos poucos.</p>
-      <div class="grid">${upgradeOpt('gate')}${upgradeOpt('turret')}${upgradeOpt('wire')}</div>`;
+      <div class="grid">${upgradeOpt('gate')}${upgradeOpt('turret')}${upgradeOpt('wire')}${upgradeOpt('holofote')}${upgradeOpt('minas')}${upgradeOpt('choque')}${upgradeOpt('espantalho')}</div>
+      ${petsHTML()}`;
   }
   function peopleHTML() {
     const list = S.people.filter(p => !peopleFilter || p.cat === peopleFilter);
@@ -5367,6 +5370,255 @@ body[data-mode="run"] .alerts { display: none; }
       <h3>Datas especiais</h3>
       <p class="note">Festa Junina (junho), Halloween (fim de outubro) e Natal (dezembro) enfeitam a rua, trazem zumbis fantasiados que dão prêmios extras e um presente para a cidade.${f ? ` Agora: <b>${f.name}</b>!` : ''}</p>`;
   };
+
+  // ---------- Armas, defesas e mascotes novos ----------
+  {
+    const at = id => WEAPONS.findIndex(w => w.id === id);
+    WEAPONS.splice(at('pistola') + 1, 0, { id: 'estilingue', name: 'Estilingue', price: 60, lvl: 1, dmg: 1.4, clip: 10, reload: 1, rate: 0.28, radius: 18, targets: 1, sound: 'bow', desc: 'Barato e silencioso. Pedrinhas que doem.' });
+    WEAPONS.splice(at('gelo'), 0,
+      { id: 'pregos', name: 'Lançador de pregos', price: 750, lvl: 4, dmg: 0.9, clip: 30, reload: 1.8, rate: 0.1, radius: 18, targets: 1, auto: true, sound: 'nail', desc: 'Segure para disparar pregos sem parar.' },
+      { id: 'pipoca', name: 'Canhão de pipoca', price: 1000, lvl: 5, dmg: 1.2, clip: 8, reload: 1.6, rate: 0.35, radius: 52, targets: 6, knock: 60, sound: 'pop', desc: 'Uma explosão de pipoca empurra os zumbis para longe do portão.' },
+      { id: 'cola', name: 'Pistola de cola', price: 1200, lvl: 6, dmg: 0.6, clip: 6, reload: 1.5, rate: 0.4, radius: 42, targets: 5, glue: 6, sound: 'splat', desc: 'Gruda os zumbis no chão por 6 segundos.' });
+    WEAPONS.push({ id: 'abobora', name: 'Lança-abóboras', tokens: 12, lvl: 4, dmg: 6, clip: 2, reload: 2.2, rate: 0.6, radius: 85, targets: 99, sound: 'boom', desc: 'Abóboras explosivas acertam tudo em volta.' });
+    Object.assign(WLEN, { estilingue: 40, pregos: 62, pipoca: 70, cola: 56, abobora: 86 });
+  }
+  sfx.nail = () => { noise(0.05, 3000, 'highpass', 0.12); tone(900, 500, 0.04, 'square', 0.05); };
+  sfx.pop = () => { noise(0.12, 1500, 'bandpass', 0.3); tone(500, 900, 0.08, 'triangle', 0.1); tone(700, 1100, 0.06, 'triangle', 0.08, 0.06); };
+  sfx.splat = () => { noise(0.18, 600, 'lowpass', 0.3); tone(220, 90, 0.18, 'sine', 0.12); };
+  sfx.woof = () => { tone(420, 260, 0.08, 'square', 0.07); tone(400, 240, 0.1, 'square', 0.07, 0.14); };
+  sfx.meow = () => { tone(700, 1050, 0.14, 'sine', 0.06); tone(1050, 620, 0.22, 'sine', 0.06, 0.14); };
+  sfx.zapS = () => { tone(2200, 600, 0.06, 'sawtooth', 0.04); };
+  const WEAPON_X = {
+    estilingue(O) {
+      ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(-6, 14); ctx.lineTo(0, 2); ctx.lineTo(-4, -12); ctx.moveTo(0, 2); ctx.lineTo(8, -12);
+      ctx.lineWidth = 7; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 4.5; ctx.strokeStyle = '#a0683a'; ctx.stroke();
+      ctx.strokeStyle = '#e04f4f'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(-4, -12); ctx.quadraticCurveTo(14, -4, 26, -4); ctx.moveTo(8, -12); ctx.quadraticCurveTo(18, -8, 26, -4); ctx.stroke();
+      ell(28, -4, 5, 4); O('#6a4a2a', 1.3); circle(30, -5, 2.5); O('#9aa0a6', 1);
+    },
+    pregos(O, G, grip) {
+      grip(0, '#2a2a34');
+      rr(-10, -12, 46, 13, 4); ctx.fillStyle = G(-12, 1, '#ffd23f', '#e0a020'); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.fillStyle = '#2a2a34'; for (let k = -6; k < 30; k += 8) ctx.fillRect(k, -12, 4, 13);
+      rr(36, -9, 12, 6, 1.5); O('#8a929e', 1.3);
+      rr(8, 1, 24, 7, 1.5); O('#c8d0d8', 1.3); ctx.strokeStyle = '#6a727a'; ctx.lineWidth = 0.8; for (let k = 10; k < 32; k += 3) { ctx.beginPath(); ctx.moveTo(k, 2); ctx.lineTo(k, 7); ctx.stroke(); }
+    },
+    pipoca(O, G, grip) {
+      grip(2, '#7a4424');
+      ctx.beginPath(); ctx.moveTo(-12, -12); ctx.lineTo(40, -16); ctx.lineTo(40, 4); ctx.lineTo(-12, 2); ctx.closePath(); ctx.save(); ctx.clip();
+      for (let k = -12; k < 42; k += 7) { ctx.fillStyle = (k / 7 | 0) % 2 ? '#ffffff' : '#e04f4f'; ctx.fillRect(k, -18, 7, 24); }
+      ctx.restore(); ctx.beginPath(); ctx.moveTo(-12, -12); ctx.lineTo(40, -16); ctx.lineTo(40, 4); ctx.lineTo(-12, 2); ctx.closePath(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke();
+      ell(40, -6, 4, 10); O('#3a3a44', 1.4);
+      for (const [dx, dy] of [[44, -16], [50, -8], [46, 2], [52, -14]]) { circle(dx, dy, 3.2); O('#fff8e0', 1); }
+    },
+    cola(O, G, grip) {
+      grip(-2, '#2f8a3a');
+      rr(-12, -12, 36, 14, 6); ctx.fillStyle = G(-12, 2, '#7cdf5a', '#2f8a3a'); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(24, -9); ctx.lineTo(42, -6); ctx.lineTo(42, -2); ctx.lineTo(24, -1); ctx.closePath(); O('#e8eef2', 1.4);
+      rr(-6, -20, 18, 9, 3); O('#f6f0d0', 1.3);
+      ctx.beginPath(); ctx.moveTo(44, -4); ctx.quadraticCurveTo(48, 2, 46, 6); ctx.quadraticCurveTo(43, 2, 44, -4); O('#e8f8a0', 1);
+    },
+    abobora(O, G, grip) {
+      grip(4, '#5a3a2a');
+      rr(-14, -12, 52, 13, 5); ctx.fillStyle = G(-12, 1, '#6a5a8a', '#3a2a5a'); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke();
+      rr(-4, -16, 10, 5, 1.5); O('#2a2a34', 1.1);
+      for (const dx of [44, 50, 47]) { ell(dx, -6, 6, 7); O('#f0842a', 1.3); }
+      rr(46, -16, 3, 4, 1); O('#5a8a3a', 1);
+      ctx.fillStyle = '#5a2a10'; ctx.beginPath(); ctx.moveTo(44, -7); ctx.lineTo(47, -7); ctx.lineTo(45.5, -10); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(49, -7); ctx.lineTo(52, -7); ctx.lineTo(50.5, -10); ctx.closePath(); ctx.fill();
+    },
+  };
+  HOOK.hit.push((W, hits, vx, vy) => {
+    if (W.knock) { puffV(vx, vy, 14, '#fff8e0'); for (const z of hits) if (z.type !== 'giant' && !z.dead) z.x += W.knock / ZT[z.type].size; }
+    if (W.glue) { splatV(vx, vy, '#d8f080', 10, 1); for (const z of hits) if (!z.dead) z.glueT = W.glue; }
+    if (W.id === 'abobora') { puffV(vx, vy, 22, '#f0842a', 1.2); splatV(vx, vy, '#ffe680', 14, 1); shake = Math.max(shake, 0.3); }
+    if (W.id === 'estilingue' || W.id === 'pregos') puffV(vx, vy, 2, '#c8c0b0', 0.5);
+  });
+  HOOK.zspeed.push(z => (z.glueT > 0 ? 0.12 : 1));
+  HOOK.worldBack.push(() => { for (const z of zombies) if (z.glueT > 0 && !z.dead) { const q = gp(z.x, z.lane); ctx.globalAlpha = Math.min(1, z.glueT); ell(q.x, q.y + 1, 18 * ZT[z.type].size, 4); ctx.fillStyle = '#d8f080'; ctx.fill(); ctx.globalAlpha = 1; } });
+
+  // defesas novas
+  Object.assign(UPG, {
+    holofote: { name: 'Holofote', desc: lv => ['nenhum', 'à noite: +25% de dano e enxerga através da neblina', 'à noite: +50% de dano e enxerga através da neblina'][lv], prices: [400, 1100] },
+    minas: { name: 'Minas na estrada', desc: lv => (lv ? `${lv + 1} minas que se rearmam a cada ${[0, 40, 30, 20][lv]}s` : 'nenhuma'), prices: [600, 1300, 2400] },
+    choque: { name: 'Cerca elétrica', desc: lv => (lv ? `choque em quem ataca o portão: ${lv * 2} de dano por segundo` : 'nenhuma'), prices: [700, 1800] },
+    espantalho: { name: 'Espantalho', desc: lv => (lv ? `distrai os zumbis lá fora (${[0, 60, 140][lv]} de resistência, se refaz sozinho)` : 'nenhum'), prices: [350, 900] },
+  });
+  HOOK.state.push(() => { for (const k of ['holofote', 'minas', 'choque', 'espantalho']) S.up[k] = S.up[k] || 0; S.pets = S.pets || {}; });
+  HOOK.dmg.push(() => (S.up.holofote && isNight() ? 1 + 0.25 * S.up.holofote : 1));
+  const MINE_X = [240, 420, 540, 640];
+  let mines = [], scare = { hp: 0, max: 0, t: 0 }, shockT = 0;
+  const SCARE_X = () => GATE_X + 340;
+  HOOK.update.push(dt => {
+    // minas
+    const nm = S.up.minas ? S.up.minas + 1 : 0;
+    while (mines.length < nm) mines.push({ x: GATE_X + MINE_X[mines.length], lane: [-0.2, 0.4, -0.5, 0.1][mines.length], armT: 0 });
+    for (const m of mines) {
+      if (m.armT > 0) { m.armT -= dt; continue; }
+      const z = zombies.find(z => !z.dead && z.type !== 'golden' && Math.abs(z.x - m.x) < 12);
+      if (z) {
+        m.armT = [0, 40, 30, 20][S.up.minas];
+        const dmg = 7 * S.up.minas * (1 + 0.1 * S.day);
+        puffE(m, 10, 22, '#ffb547'); splatE(m, 6, '#6a5a4a', 12); sfx.boom(); shake = Math.max(shake, 0.35);
+        for (const o of zombies) if (!o.dead && Math.abs(o.x - m.x) < 70) hurtZombie(o, dmg, false);
+        floatE(m, 50, 'Bum!', '#ffb547');
+      }
+    }
+    // cerca elétrica
+    if (S.up.choque) {
+      shockT -= dt;
+      if (shockT <= 0) {
+        shockT = 0.5;
+        for (const z of zombies) if (!z.dead && z.state === 'attack' && z.type !== 'spitter') {
+          hurtZombie(z, S.up.choque, true, true);
+          for (let k = 0; k < 3; k++) { const q = gp(z.x, z.lane, rnd(10, 50)); parts.push({ x: q.x + rnd(-8, 8), y: q.y, vx: rnd(-60, 60), vy: rnd(-80, 20), g: 100, life: 0.25, max: 0.25, c: pick(['#9fe8ff', '#ffffff', '#6ac8ff']), r: rnd(1.5, 3), view: true }); }
+          if (Math.random() < 0.3) sfx.zapS();
+        }
+      }
+    }
+    // espantalho: segura quem chega nele até quebrar, depois se refaz
+    const smax = [0, 60, 140][S.up.espantalho];
+    if (scare.max !== smax) { scare.max = smax; scare.hp = smax; }
+    if (smax) {
+      if (scare.hp <= 0) { scare.t -= dt; if (scare.t <= 0) { scare.hp = smax; } }
+      else for (const z of zombies) {
+        if (z.dead || z.type === 'golden' || z.type === 'giant' || z.type === 'spitter' || z.glueT > 0) continue;
+        if (z.x < SCARE_X() + 4 && z.x > SCARE_X() - 30) {
+          z.x = SCARE_X() + 2; z.state = 'attack';
+          scare.hp -= ZT[z.type].dmg * dt * 0.8;
+          if (scare.hp <= 0) { scare.t = 35; puffE({ x: SCARE_X(), lane: 0 }, 30, 16, '#e8c060'); toast('Os zumbis derrubaram o espantalho! Ele se refaz em 35s.'); break; }
+        }
+      }
+    }
+    for (const z of zombies) if (z.glueT > 0) z.glueT -= dt;
+  });
+  HOOK.worldBack.push(nf => {
+    if (camX > GX + 40) return;
+    const t = performance.now() / 1000;
+    for (const m of mines) {
+      const q = gp(m.x, m.lane);
+      ell(q.x, q.y, 9, 3.5); ink(mix('#5a5a4a', '#2a2a30', nf * 0.5), 1.2);
+      ctx.fillStyle = m.armT > 0 ? '#5a5a5a' : Math.sin(t * 6 + m.x) > 0 ? '#ff4a3a' : '#7a1a1a'; circle(q.x, q.y - 2.5, 1.8); ctx.fill();
+    }
+    if (scare.max) {
+      const x = wxOf(SCARE_X()), y = GROUND + 2, up = scare.hp > 0;
+      ctx.save(); ctx.translate(x, y); if (!up) ctx.rotate(-1.3);
+      ctx.strokeStyle = '#6b4a34'; ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(0, -62); ctx.moveTo(-22, -44); ctx.lineTo(22, -44); ctx.stroke();
+      rr(-12, -50, 24, 26, 3); ink(mix('#7a4a8a', '#3a2a40', nf * 0.5), 1.4);
+      ctx.strokeStyle = '#e8c060'; ctx.lineWidth = 1.5; ctx.beginPath(); for (const s of [-1, 1]) { ctx.moveTo(22 * s, -44); ctx.lineTo(26 * s, -40); ctx.moveTo(22 * s, -44); ctx.lineTo(27 * s, -46); } ctx.stroke();
+      circle(0, -60, 10); ink(mix('#f4e4c4', '#5a5040', nf * 0.5), 1.4);
+      ctx.fillStyle = INK; circle(-3.5, -61, 1.6); ctx.fill(); circle(3.5, -61, 1.6); ctx.fill(); ctx.beginPath(); ctx.arc(0, -57, 3.5, 0.2, Math.PI - 0.2); ctx.stroke();
+      ell(0, -69, 16, 3.5); ink('#e8c060', 1.2); ctx.beginPath(); ctx.moveTo(-8, -70); ctx.quadraticCurveTo(0, -84, 8, -70); ctx.closePath(); ink('#f0d070', 1.2);
+      ctx.restore();
+      if (up && scare.hp < scare.max) { rr(x - 16, y - 92, 32, 5, 2); ctx.fillStyle = '#2a2a34'; ctx.fill(); ctx.fillStyle = '#7cbf4a'; ctx.fillRect(x - 15, y - 91, 30 * scare.hp / scare.max, 3); }
+    }
+  });
+  HOOK.worldFront.push(nf => {
+    if (!S.up.holofote || nf <= 0.05 || camX > GX + 40) return;
+    const lx = GX + 26, ly = GROUND - 150;
+    rr(lx - 3, ly, 6, 150, 1); ink('#3a3a44', 1.2);
+    ctx.save(); ctx.translate(lx, ly); ctx.rotate(Math.PI * 0.92 + Math.sin(performance.now() / 1400) * 0.08);
+    rr(-8, -7, 18, 14, 3); ink('#5a6270', 1.4); ell(10, 0, 3, 7); ctx.fillStyle = '#fff8d0'; ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    const g = ctx.createLinearGradient(10, 0, 560, 0); g.addColorStop(0, `rgba(255,250,210,${0.35 * nf})`); g.addColorStop(1, 'rgba(255,250,210,0)');
+    ctx.fillStyle = g; ctx.beginPath(); ctx.moveTo(10, -6); ctx.lineTo(560, -90); ctx.lineTo(560, 90); ctx.lineTo(10, 6); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  });
+
+  // mascotes: precisam de um pet shop com funcionários para serem adotados
+  const PETS = {
+    dog: { name: 'Cão de guarda', price: 500, desc: 'Fica no portão e corre para morder os zumbis que chegam perto.' },
+    cat: { name: 'Gato da cidade', price: 350, desc: 'Passeia pela rua e de vez em quando traz caixas de mercadoria. Ninguém sabe de onde.' },
+  };
+  const petshopReady = () => staffed('petshop');
+  function petsHTML() {
+    return `<h3>Mascotes</h3>
+      ${petshopReady() ? '' : '<p class="note">Construa um Pet shop e contrate alguém para adotar mascotes.</p>'}
+      <div class="grid">${Object.entries(PETS).map(([k, p]) => `<div class="opt${S.pets[k] ? ' on' : ''}"><b>${p.name}</b><p>${p.desc}</p>
+        ${S.pets[k] ? '<button class="btn green" disabled>Na cidade</button>' : `<button class="btn" data-act="buyPet" data-k="${k}" ${!petshopReady() || S.coins < p.price ? 'disabled' : ''}>Adotar · ${coinBtn(p.price)}</button>`}</div>`).join('')}</div>`;
+  }
+  XA.buyPet = b => {
+    const k = b.dataset.k, p = PETS[k];
+    if (!p || S.pets[k] || !petshopReady() || S.coins < p.price) return false;
+    S.coins -= p.price; S.pets[k] = 1;
+    toast(`${p.name} chegou na cidade!`, 'good'); logEvent(`a cidade adotou um ${p.name.toLowerCase()}`);
+    if (k === 'dog') sfx.woof(); else sfx.meow();
+  };
+  const dog = { wx: GX + 40, state: 'home', bites: 0, t: 0, cd: 0, z: null, face: -1 };
+  const cat = { wx: GX + 160, tx: GX + 160, t: 0, gift: 60, box: 0, face: 1, wait: 0 };
+  HOOK.update.push(dt => {
+    if (S.pets.dog) {
+      dog.t += dt; dog.cd = Math.max(0, dog.cd - dt);
+      const home = GX + 40;
+      if (dog.state === 'home' && dog.cd <= 0) {
+        const z = zombies.filter(z => !z.dead && z.type !== 'golden' && z.x < GATE_X + DEF_W + 170).sort((a, b) => a.x - b.x)[0];
+        if (z) { dog.z = z; dog.state = 'run'; dog.bites = 0; sfx.woof(); }
+      }
+      if (dog.state === 'run') {
+        const z = dog.z;
+        if (!z || z.dead) { dog.state = 'back'; }
+        else {
+          const tx = wxOf(z.x) + 14;
+          dog.face = Math.sign(tx - dog.wx) || -1;
+          dog.wx += clamp(tx - dog.wx, -190 * dt, 190 * dt);
+          if (Math.abs(tx - dog.wx) < 4) {
+            dog.biteT = (dog.biteT || 0) - dt;
+            if (dog.biteT <= 0) { dog.biteT = 0.7; dog.bites++; hurtZombie(z, 2 * (1 + 0.1 * S.day) * dmgMul(), true); if (dog.bites >= 4) dog.state = 'back'; }
+          }
+        }
+      }
+      if (dog.state === 'back') {
+        dog.face = 1; dog.wx += clamp(home - dog.wx, -170 * dt, 170 * dt);
+        if (Math.abs(home - dog.wx) < 2) { dog.state = 'home'; dog.cd = 3; }
+      }
+    }
+    if (S.pets.cat) {
+      cat.t += dt; cat.gift -= dt;
+      const right = lotX(Math.max(0, S.lotsOpen - 1)) + LOT_W;
+      if (cat.wait > 0) cat.wait -= dt;
+      else if (Math.abs(cat.tx - cat.wx) < 2) { cat.wait = rnd(2, 6); cat.tx = rnd(GX + 60, right); }
+      else { cat.face = Math.sign(cat.tx - cat.wx); cat.wx += cat.face * 30 * dt; }
+      if (cat.box > 0) cat.box -= dt;
+      if (cat.gift <= 0) {
+        cat.gift = rnd(70, 110);
+        const g = 2 + Math.floor(S.level / 3);
+        S.goods = Math.min(GOODS_MAX, S.goods + g); cat.box = 3;
+        floatText(cat.wx, GROUND - 30, `+${g} caixas`, '#e8b878'); sfx.meow();
+      }
+    }
+  });
+  function drawDog(x, y, face, run, t) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(face, 1);
+    const leg = run ? Math.sin(t * 22) * 4 : 0;
+    ctx.strokeStyle = INK; ctx.lineWidth = 3.5; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-8, -6); ctx.lineTo(-8 + leg, 0); ctx.moveTo(-3, -6); ctx.lineTo(-3 - leg, 0); ctx.moveTo(6, -6); ctx.lineTo(6 + leg, 0); ctx.moveTo(10, -6); ctx.lineTo(10 - leg, 0); ctx.stroke();
+    ctx.strokeStyle = '#a0683a'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-12, -11); ctx.quadraticCurveTo(-20, -18 - Math.sin(t * 12) * 3, -18, -22); ctx.lineWidth = 3.5; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 2; ctx.strokeStyle = '#a0683a'; ctx.stroke();
+    ell(0, -10, 13, 6.5); ink('#c08850', 1.5);
+    circle(14, -17, 7); ink('#c08850', 1.5);
+    ell(19, -15, 4.5, 3.2); ink('#e8c8a0', 1.2); circle(22, -16, 1.5); ctx.fillStyle = INK; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(10, -22); ctx.quadraticCurveTo(7, -14, 11, -12); ctx.quadraticCurveTo(13, -18, 10, -22); ink('#7a4a2a', 1.2);
+    ctx.fillStyle = INK; circle(15, -19, 1.4); ctx.fill();
+    rr(5, -15, 4, 3, 1); ink('#e04f4f', 1);
+    ctx.restore();
+  }
+  function drawCat(x, y, face, walk, t, box) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(face, 1);
+    const leg = walk ? Math.sin(t * 12) * 2.5 : 0;
+    ctx.strokeStyle = '#2a2a34'; ctx.lineWidth = 2.6; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(-7, -5); ctx.lineTo(-7 + leg, 0); ctx.moveTo(6, -5); ctx.lineTo(6 - leg, 0); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-9, -8); ctx.quadraticCurveTo(-18, -10, -16, -22 - Math.sin(t * 3) * 2); ctx.lineWidth = 2.6; ctx.stroke();
+    ell(0, -8, 10, 5); ink('#3a3a48', 1.3);
+    circle(10, -14, 6); ink('#3a3a48', 1.3);
+    for (const ex of [6, 13]) { ctx.beginPath(); ctx.moveTo(ex - 3, -18); ctx.lineTo(ex, -24); ctx.lineTo(ex + 2, -18); ctx.closePath(); ink('#3a3a48', 1.1); }
+    ctx.fillStyle = '#9fe86a'; circle(11, -15, 1.4); ctx.fill(); circle(14.5, -15, 1.4); ctx.fill();
+    if (box > 0) { rr(10, -10, 10, 8, 1.5); ink('#d8964e', 1); }
+    ctx.restore();
+  }
+  HOOK.worldFront.push(() => {
+    const t = performance.now() / 1000;
+    if (S.pets.dog && dog.wx > camX - 40 && dog.wx < camX + viewW + 40) drawDog(dog.wx, GROUND + (dog.state === 'home' ? 12 : 10), dog.face, dog.state !== 'home', t);
+    if (S.pets.cat && cat.wx > camX - 40 && cat.wx < camX + viewW + 40) drawCat(cat.wx, GROUND + 14, cat.face, cat.wait <= 0, t, cat.box);
+  });
 
   // ---------- Menu "Mais" ----------
   // Cada sistema novo se registra aqui com um cartão (rótulo, descrição e o que abrir).

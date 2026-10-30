@@ -421,7 +421,7 @@ body[data-mode="run"] .alerts { display: none; }
         <button class="hbtn" id="bWeapons" type="button">Armas</button>
         <button class="hbtn" id="bDefense" type="button">Defesa</button>
         <button class="hbtn" id="bPeople" type="button">Moradores</button>
-        <button class="hbtn" id="bMore" type="button">Mais ☰</button>
+        <button class="hbtn" id="bMore" type="button">Mais ☰<span class="badge" id="hMoreBadge" hidden>0</span></button>
       </div>
       <div class="grp run-only">
         <button class="hbtn warn" id="bFlee" type="button">Fugir</button>
@@ -743,7 +743,7 @@ body[data-mode="run"] .alerts { display: none; }
     };
   }
   const missionText = m => MT.find(t => t.k === m.k).txt(m.n);
-  function track(k, amt = 1) {
+  let track = function (k, amt = 1) {
     if (!S) return;
     for (const m of S.missions) {
       if (m.k === k && m.prog < m.n) {
@@ -751,7 +751,7 @@ body[data-mode="run"] .alerts { display: none; }
         if (m.prog >= m.n) toast(`Missão cumprida: ${missionText(m)}! Pegue a recompensa em Missões.`, 'good');
       }
     }
-  }
+  };
 
   // ---------- Som ----------
   let AC = null, master = null, noiseBuf = null, muted = false;
@@ -5147,6 +5147,7 @@ body[data-mode="run"] .alerts { display: none; }
     setTimeout(() => sfx.thunder(), hit ? 0 : rnd(150, 700));
     if (hit) {
       hurtZombie(hit, 999, true, true);
+      track('raio');
       floatE(hit, 80, 'Raio!', '#fff8a0');
       puffE(hit, 20, 10, '#fff4c0');
     }
@@ -5688,7 +5689,7 @@ body[data-mode="run"] .alerts { display: none; }
         z.leaving = true;
         const c = 60 + S.day * 8; S.coins += c; S.joyBoost = Math.max(S.joyBoost || 0, 240);
         setBanner('Que show!', `O zumbi músico tocou para a cidade: +${c} moedas e mais alegria por 4 minutos`);
-        logEvent('um zumbi músico fez um show no portão'); sfx.dawn();
+        logEvent('um zumbi músico fez um show no portão'); sfx.dawn(); track('show');
       }
     }
   });
@@ -6254,6 +6255,182 @@ body[data-mode="run"] .alerts { display: none; }
       return { ib: G - 120 };
     },
   });
+
+  // ---------- Estatísticas, álbum de zumbis, diário e conquistas ----------
+  HOOK.state.push(() => {
+    // cidades de antes das estatísticas começam com o que o save já sabia
+    if (!S.st) S.st = { k: { walker: S.kills || 0 }, c: {}, nights: Math.max(0, S.day - 1), maxPop: S.people.length, maxCoins: S.coins };
+    S.st = Object.assign({ k: {}, c: {}, nights: 0, nightK: 0, bestNightK: 0, maxPop: 0, maxCoins: 0, maxJoy: 0 }, S.st);
+    S.alb = S.alb || {}; S.medals = S.medals || {}; S.diary = S.diary || 0;
+  });
+  // toda chamada de track (missões) também vira estatística
+  const track0 = track;
+  track = function (k, amt = 1) { if (S && S.st) S.st.c[k] = (S.st.c[k] || 0) + amt; track0(k, amt); };
+  const stat = k => (S.st.c[k] || 0);
+  const killsOf = t => (S.st.k[t] || 0);
+  const totalKills = () => Object.values(S.st.k).reduce((a, b) => a + b, 0);
+  HOOK.kill.push(z => {
+    S.st.k[z.type] = (S.st.k[z.type] || 0) + 1;
+    if (z.hat && z.hat !== 'violao') S.st.k['hat_' + z.hat] = (S.st.k['hat_' + z.hat] || 0) + 1;
+    if (isNight()) S.st.nightK++;
+  });
+  HOOK.night.push(() => { S.st.nightK = 0; });
+  HOOK.dawn.push(() => { S.st.nights++; S.st.bestNightK = Math.max(S.st.bestNightK, S.st.nightK); });
+  let statT = 0;
+  HOOK.update.push(dt => {
+    statT -= dt; if (statT > 0) return; statT = 1.5;
+    S.st.maxPop = Math.max(S.st.maxPop, S.people.length);
+    S.st.maxCoins = Math.max(S.st.maxCoins, S.coins);
+    S.st.maxJoy = Math.max(S.st.maxJoy, Math.round(happiness() * 100));
+    checkMedals();
+  });
+
+  // ----- Álbum de zumbis -----
+  const ALBUM = [
+    { id: 'walker', page: 'Comuns', txt: 'O zumbi de sempre. Anda devagar, geme alto e adora bater em portão.', n: [1, 50, 250] },
+    { id: 'runner', page: 'Comuns', txt: 'Ainda acha que está atrasado para o trabalho. Corre muito e cansa pouco.', n: [1, 30, 150] },
+    { id: 'brute', page: 'Comuns', txt: 'Era segurança de balada. Continua não deixando ninguém passar.', n: [1, 15, 80] },
+    { id: 'spitter', page: 'Comuns', txt: 'Cospe uma gosma verde de longe. Ninguém sabe o que ele comeu.', n: [1, 20, 100] },
+    { id: 'armored', page: 'Comuns', txt: 'Achou um capacete e ficou todo convencido. Primeiro o capacete, depois ele.', n: [1, 20, 100] },
+    { id: 'bloater', page: 'Comuns', txt: 'Inchado de tanto comer. Explode quando cai: mantenha distância do portão.', n: [1, 15, 80] },
+    { id: 'golden', page: 'Raros', txt: 'Brilha mais que o sol e foge de todo mundo. Vale uma fortuna.', n: [1, 5, 20] },
+    { id: 'giant', page: 'Raros', txt: 'Do tamanho de um caminhão. Um soco dele racha qualquer barricada.', n: [1, 5, 20] },
+    { id: 'musico', page: 'Raros', txt: 'Só quer tocar uma música. Deixe ele chegar perto e aproveite o show.', n: [1, 5, 15], count: () => killsOf('musico') + stat('show') },
+    { id: 'hat_bruxa', page: 'Fantasiados', type: 'walker', hat: 'bruxa', name: 'zumbi bruxa', txt: 'Aparece no Halloween pedindo doces. Os doces são seus.', n: [1, 15, 50] },
+    { id: 'hat_noel', page: 'Fantasiados', type: 'runner', hat: 'noel', name: 'zumbi Noel', txt: 'Chega no Natal com um saco de presentes. Ho, ho... argh.', n: [1, 15, 50] },
+    { id: 'hat_palha', page: 'Fantasiados', type: 'walker', hat: 'palha', name: 'zumbi caipira', txt: 'Veio para a festa junina e trouxe pamonha. Ninguém quer a pamonha dele.', n: [1, 15, 50] },
+  ];
+  const albCount = e => (e.count ? e.count() : killsOf(e.id));
+  const albName = e => e.name || ZT[e.id].name;
+  const ALB_REWARD = [{ coins: 40, xp: 10 }, { coins: 250, xp: 30 }, { coins: 400, tokens: 2, xp: 60 }];
+  const albReady = e => { const got = S.alb[e.id] || 0; return got < 3 && albCount(e) >= e.n[got]; };
+  const portraitZ = new Map();
+  function zombiePortrait(e, known) {
+    const key = e.id + known;
+    if (portraitZ.has(key)) return portraitZ.get(key);
+    const c = document.createElement('canvas'); c.width = 180; c.height = 180;
+    const saved = ctx; ctx = c.getContext('2d');
+    try {
+      const type = e.type || e.id, sz = ZT[type].size, hat = e.hat || (e.id === 'musico' ? 'violao' : null), k = Math.min(1.15, (hat ? 0.92 : 1.12) / sz);
+      ctx.scale(2, 2);
+      drawZombie({ type, state: 'walk', t: 0.35, flash: 0, var: 4, helmet: ZT[type].helmet ? 1 : 0, hat }, 45, 86, k, 1);
+      if (!known) { ctx.globalCompositeOperation = 'source-in'; ctx.fillStyle = '#5a3a2a'; ctx.fillRect(0, 0, 90, 90); }
+    } catch (err) { console.error(err); }
+    ctx = saved;
+    const url = c.toDataURL(); portraitZ.set(key, url); return url;
+  }
+  XS.album = () => {
+    const pages = [...new Set(ALBUM.map(e => e.page))];
+    const done = ALBUM.filter(e => albCount(e) > 0).length;
+    return `<h2>Álbum de zumbis <span class="lvl">${done} de ${ALBUM.length} descobertos</span></h2>
+      <p class="note">Cada zumbi derrotado entra no álbum. Junte mais da mesma espécie para ganhar prêmios.</p>
+      ${pages.map(pg => `<h3>${pg}</h3><div class="grid">${ALBUM.filter(e => e.page === pg).map(e => {
+        const n = albCount(e), known = n > 0, got = S.alb[e.id] || 0, ready = albReady(e), next = e.n[Math.min(2, got)];
+        return `<div class="opt${got >= 3 ? ' on' : ''}"><img class="wimg" src="${zombiePortrait(e, known)}" alt="" style="max-width:120px">
+          <b>${known ? albName(e) : '???'}</b>
+          <p>${known ? e.txt : 'Ainda não encontrado.'}</p>
+          <p class="stat"><span>${e.id === 'musico' ? 'Encontros' : 'Derrotados'}: ${fmt(n)}</span><span>${'★'.repeat(got)}${'☆'.repeat(3 - got)}</span></p>
+          ${got >= 3 ? '<button class="btn green" disabled>Completo</button>' : `<div class="prog small"><i style="width:${Math.min(100, 100 * n / next)}%"></i></div>
+          <button class="btn ${ready ? 'green' : 'alt'}" data-act="albClaim" data-id="${e.id}" ${ready ? '' : 'disabled'}>${ready ? 'Pegar prêmio' : `${fmt(n)} de ${next}`}</button>`}</div>`;
+      }).join('')}</div>`).join('')}`;
+  };
+  function giveReward(r) {
+    S.coins += r.coins || 0; S.goods = Math.min(GOODS_MAX, S.goods + (r.goods || 0)); S.tokens += r.tokens || 0;
+    if (r.xp) gainXP(r.xp);
+    sfx.coin();
+  }
+  XA.albClaim = b => {
+    const e = ALBUM.find(x => x.id === b.dataset.id);
+    if (!e || !albReady(e)) return false;
+    const r = ALB_REWARD[S.alb[e.id] || 0];
+    S.alb[e.id] = (S.alb[e.id] || 0) + 1;
+    giveReward(r);
+    toast(`Álbum: ${albName(e)} ${'★'.repeat(S.alb[e.id])}! ${rewardTxt(r)}`, 'good');
+  };
+
+  // ----- Diário da cidade -----
+  const decoCount = () => S.lots.filter((L, i) => L && i < S.lotsOpen && !(L.build > 0) && BLD[L.type].deco).length;
+  const builtCount = () => S.lots.filter((L, i) => L && i < S.lotsOpen && !(L.build > 0)).length;
+  const bizRunning = () => S.lots.filter((L, i) => L && i < S.lotsOpen && BLD[L.type].products && workersOf(i).length).length;
+  const defUps = () => ['gate', 'turret', 'wire', 'holofote', 'minas', 'choque', 'espantalho'].reduce((a, k) => a + (S.up[k] || 0), 0);
+  const DIARY = [
+    { title: 'Primeiros dias', story: 'Uma casinha, uma lanchonete e um portão de tralha. Foi assim que a Barricada começou.', goals: [['Ter 3 construções', () => builtCount(), 3], ['Ter 4 moradores', () => S.people.length, 4]], reward: { coins: 150, tokens: 1 } },
+    { title: 'Portão firme', story: 'As noites são longas, mas o portão aguenta. Cada zumbi derrubado é uma história para contar no café.', goals: [['Derrotar 50 zumbis', () => totalKills(), 50], ['Sobreviver a 3 noites', () => S.st.nights, 3]], reward: { coins: 250, goods: 20 } },
+    { title: 'Comércio vivo', story: 'O cheiro de pastel voltou para a rua. Tem gente comprando, vendendo e reclamando do preço, como antes.', goals: [['4 negócios com funcionários', () => bizRunning(), 4], ['Recolher 1.000 moedas', () => stat('collect'), 1000]], reward: { tokens: 2, coins: 200 } },
+    { title: 'Lá fora', story: 'A picape azul aprendeu o caminho do posto, da farmácia e de volta. Sempre volta com alguém novo na caçamba.', goals: [['Completar 3 expedições', () => stat('run'), 3], ['Salvar 8 sobreviventes', () => stat('save'), 8]], reward: { coins: 400, goods: 30 } },
+    { title: 'Cidade bonita', story: 'Alguém plantou flores no canteiro. Depois alguém pintou o muro. Agora todo mundo quer deixar a rua mais bonita.', goals: [['Construir 2 decorações', () => decoCount(), 2], ['Alegria da cidade em 75%', () => Math.round(happiness() * 100), 75]], reward: { tokens: 3 } },
+    { title: 'Defesas de verdade', story: 'Minas, arame, holofote... O portão virou uma fortaleza. Os gigantes que se cuidem.', goals: [['Fazer 5 melhorias de defesa', () => defUps(), 5], ['Derrotar 3 gigantes', () => killsOf('giant'), 3]], reward: { coins: 700, tokens: 2 } },
+    { title: 'Uma cidade de verdade', story: 'Já tem fila na padaria, briga por vaga no estacionamento e fofoca na praça. A Barricada é uma cidade de verdade.', goals: [['Ter 20 moradores', () => S.people.length, 20], ['Ter 15 construções', () => builtCount(), 15], ['Chegar ao nível 10', () => S.level, 10]], reward: { tokens: 5, coins: 1000 } },
+    { title: 'Lenda da estrada', story: 'Nas rádios de longe, falam de uma cidade que nunca caiu. Gente famosa vem de longe só para morar aqui.', goals: [['Sobreviver a 30 noites', () => S.st.nights, 30], ['Derrotar 1.000 zumbis', () => totalKills(), 1000], ['Ter 3 moradores famosos', () => S.people.filter(p => p.famous).length, 3]], reward: { tokens: 10, coins: 3000 } },
+  ];
+  const diaryReady = () => S.diary < DIARY.length && DIARY[S.diary].goals.every(([, f, n]) => f() >= n);
+  XS.diary = () => {
+    const done = DIARY.slice(0, S.diary), cur = DIARY[S.diary];
+    return `<h2>Diário da cidade <span class="lvl">capítulo ${Math.min(S.diary + 1, DIARY.length)} de ${DIARY.length}</span></h2>
+      ${cur ? `<div class="opt${diaryReady() ? ' on' : ''}"><b>Capítulo ${S.diary + 1}: ${cur.title}</b><p>${cur.story}</p>
+        ${cur.goals.map(([label, f, n]) => { const v = Math.min(n, f()); return `<p>${v >= n ? '✅' : '⬜'} ${label} <span class="note">(${fmt(v)} de ${fmt(n)})</span></p><div class="prog small"><i style="width:${100 * v / n}%"></i></div>`; }).join('')}
+        <p class="dream">Prêmio: ${rewardTxt(cur.reward)}</p>
+        <button class="btn ${diaryReady() ? 'green' : 'alt'}" data-act="diaryNext" ${diaryReady() ? '' : 'disabled'}>${diaryReady() ? 'Fechar capítulo e pegar prêmio' : 'Em andamento'}</button></div>`
+        : '<div class="opt on"><b>Fim... por enquanto!</b><p>A Barricada virou lenda. Novos capítulos podem chegar com as próximas atualizações.</p></div>'}
+      ${done.length ? `<h3>Capítulos anteriores</h3>${done.map((c, k) => `<p><b>${k + 1}. ${c.title}.</b> <span class="note">${c.story}</span></p>`).join('')}` : ''}`;
+  };
+  XA.diaryNext = () => {
+    if (!diaryReady()) return false;
+    const c = DIARY[S.diary]; S.diary++;
+    giveReward(c.reward);
+    setBanner(`Capítulo ${S.diary} completo!`, c.title);
+    logEvent(`fechou o capítulo "${c.title}" do diário`);
+  };
+
+  // ----- Conquistas e recordes -----
+  const MEDALS = [
+    { id: 'kills', name: 'Mira afiada', txt: 'Zumbis derrotados', v: () => totalKills(), n: [100, 1000, 5000] },
+    { id: 'nights', name: 'Insone', txt: 'Noites sobrevividas', v: () => S.st.nights, n: [5, 25, 75] },
+    { id: 'pop', name: 'Cidade cheia', txt: 'Moradores ao mesmo tempo', v: () => S.st.maxPop, n: [10, 30, 60] },
+    { id: 'build', name: 'Mestre de obras', txt: 'Obras feitas', v: () => stat('build'), n: [10, 30, 80] },
+    { id: 'run', name: 'Saqueador', txt: 'Expedições completas', v: () => stat('run'), n: [5, 25, 80] },
+    { id: 'save', name: 'Anjo da guarda', txt: 'Sobreviventes salvos', v: () => stat('save'), n: [10, 50, 150] },
+    { id: 'golden', name: 'Caça-ouro', txt: 'Zumbis dourados', v: () => killsOf('golden'), n: [1, 10, 30] },
+    { id: 'giant', name: 'Derruba-gigante', txt: 'Gigantes derrubados', v: () => killsOf('giant'), n: [1, 10, 30] },
+    { id: 'raio', name: 'Pega-raio', txt: 'Zumbis atingidos por raios', v: () => stat('raio'), n: [1, 10, 40] },
+    { id: 'fest', name: 'Folião', txt: 'Zumbis fantasiados', v: () => killsOf('hat_bruxa') + killsOf('hat_noel') + killsOf('hat_palha'), n: [5, 30, 100] },
+    { id: 'show', name: 'Fã de carteirinha', txt: 'Shows do zumbi músico', v: () => stat('show'), n: [1, 5, 15] },
+    { id: 'joy', name: 'Cidade feliz', txt: 'Alegria máxima (%)', v: () => S.st.maxJoy, n: [70, 85, 100] },
+    { id: 'rich', name: 'Cofre cheio', txt: 'Moedas guardadas de uma vez', v: () => S.st.maxCoins, n: [5000, 50000, 250000] },
+    { id: 'night1', name: 'Noite sangrenta', txt: 'Zumbis numa só noite', v: () => Math.max(S.st.bestNightK, isNight() ? S.st.nightK : 0), n: [30, 80, 200] },
+  ];
+  const MEDAL_NAMES = ['bronze', 'prata', 'ouro'], MEDAL_ICON = ['🥉', '🥈', '🥇'], MEDAL_REWARD = [{ coins: 80 }, { tokens: 1, coins: 150 }, { tokens: 3, coins: 400 }];
+  function checkMedals() {
+    for (const m of MEDALS) {
+      const got = S.medals[m.id] || 0;
+      if (got < 3 && m.v() >= m.n[got]) {
+        S.medals[m.id] = got + 1;
+        const r = MEDAL_REWARD[got];
+        giveReward(r);
+        toast(`${MEDAL_ICON[got]} Conquista: ${m.name} (${MEDAL_NAMES[got]})! ${rewardTxt(r)}`, 'good');
+        logEvent(`ganhou a medalha ${m.name} de ${MEDAL_NAMES[got]}`);
+      }
+    }
+  }
+  XS.medals = () => {
+    const total = MEDALS.reduce((a, m) => a + (S.medals[m.id] || 0), 0);
+    const rec = [['Dia mais longe', S.day], ['Noites sobrevividas', S.st.nights], ['Mais moradores', S.st.maxPop], ['Mais zumbis numa noite', Math.max(S.st.bestNightK, S.st.nightK)], ['Mais moedas guardadas', fmt(S.st.maxCoins)], ['Zumbis derrotados', fmt(totalKills())], ['Alegria máxima', S.st.maxJoy + '%'], ['Nível da cidade', S.level]];
+    return `<h2>Conquistas <span class="lvl">${total} de ${MEDALS.length * 3} medalhas</span></h2>
+      <p class="note">As medalhas chegam sozinhas quando você alcança cada marca, e cada uma traz um prêmio.</p>
+      <div class="grid">${MEDALS.map(m => { const got = S.medals[m.id] || 0, v = m.v(), next = m.n[Math.min(2, got)];
+        return `<div class="opt${got >= 3 ? ' on' : ''}"><b>${got ? MEDAL_ICON[got - 1] : '⚪'} ${m.name}</b><p>${m.txt}: ${fmt(v)}</p>
+          ${got >= 3 ? '<p class="dream">Ouro conquistado!</p>' : `<div class="prog small"><i style="width:${Math.min(100, 100 * v / next)}%"></i></div><p>Próxima (${MEDAL_NAMES[got]}): ${fmt(next)}</p>`}</div>`; }).join('')}</div>
+      <h3>Recordes</h3>
+      <div class="grid">${rec.map(([k, v]) => `<div class="opt"><b>${v}</b><p>${k}</p></div>`).join('')}</div>`;
+  };
+  MORE.push(
+    { id: 'album', label: 'Álbum de zumbis', desc: () => `${ALBUM.filter(e => albCount(e) > 0).length} de ${ALBUM.length} descobertos.${ALBUM.some(albReady) ? ' Tem prêmio esperando!' : ''}`, open: () => openSheet('album'), cls: '' },
+    { id: 'diary', label: 'Diário da cidade', desc: () => (S.diary < DIARY.length ? `Capítulo ${S.diary + 1}: ${DIARY[S.diary].title}.${diaryReady() ? ' Pronto para fechar!' : ''}` : 'Todos os capítulos completos!'), open: () => openSheet('diary') },
+    { id: 'medals', label: 'Conquistas e recordes', desc: () => `${MEDALS.reduce((a, m) => a + (S.medals[m.id] || 0), 0)} medalhas e os recordes da cidade.`, open: () => openSheet('medals') },
+    { id: 'weather', label: 'Clima e estações', desc: () => `${WEATHER[wxK()].icon} ${WEATHER[wxK()].name} · ${season().name}`, open: () => openSheet('weather'), cls: 'alt' },
+  );
+  // aviso no botão Mais quando há prêmio para pegar
+  HOOK.hud.push(() => { const n = ALBUM.filter(albReady).length + (diaryReady() ? 1 : 0); const bd = $('hMoreBadge'); if (bd) { bd.hidden = !n; bd.textContent = n; } });
 
   // ---------- Laço ----------
   let last = performance.now();

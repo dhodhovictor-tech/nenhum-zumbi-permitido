@@ -79,3 +79,41 @@ Resumo de tudo o que foi pedido e feito na conversa original (28/10/2026), para 
 - **Controles:**
   - no celular: toque nos zumbis para atirar e arraste a rua para mover a câmera;
   - no teclado: setas movem a câmera, R recarrega e 1–9 trocam de arma.
+
+## Desenvolvimento por esta conversa (30/10/2026)
+
+O jogo continua **100% offline**, sem login, para jogar com calma.
+
+1. **App instalável:** PWA no GitHub Pages, botões numa faixa própria no celular deitado, e atualizações que chegam ao fechar e abrir o app.
+2. **Backup do save:** em Mais → Backup, gera um código para copiar ou um arquivo para salvar, e restaura a cidade num celular novo.
+3. **Clima e estações:**
+   - Uma estação nova a cada 6 dias de jogo.
+   - Chuva: poças e zumbis mais lentos.
+   - Tempestade: raios que acertam zumbis.
+   - Calor: sorvete, suco e açaí vendem mais.
+   - Neve: pegadas, cachecol nos moradores e café vendendo mais.
+   - Folhas caindo no outono e pétalas na primavera.
+   - **Festa Junina, Halloween e Natal** pelo calendário do celular, com enfeites, zumbis fantasiados e um presente por ano.
+4. **Construções:**
+   - Moradias: ônibus escolar, vagão de trem, barco no seco, domo geodésico, igreja antiga e tenda de circo.
+   - Comércios: food truck, açaí, feira livre, bicicletaria, pet shop, floricultura, academia, estúdio de tatuagem e estúdio de música.
+   - **Decoração:** praça, jardim, fonte, mural, parquinho, coreto, estátua, horta comunitária e laguinho de pesca. Elas dão **alegria**, e cidade alegre vende mais.
+5. **Armas:** estilingue, lançador de pregos, canhão de pipoca, pistola de cola e lança-abóboras.
+6. **Defesas:** holofote, minas, cerca elétrica e espantalho.
+7. **Mascotes:** cão de guarda e gato que traz caixas. Precisam de um pet shop com funcionários.
+8. **Eventos:**
+   - Caravana de comerciantes.
+   - Horda migratória.
+   - Apagão.
+   - Sobreviventes famosos, com bônus próprios.
+   - Zumbi músico.
+9. **Álbum de zumbis** (com prêmios por estrela), **Diário da cidade** (8 capítulos) e **Conquistas e recordes** (14 medalhas de bronze, prata e ouro).
+10. **Minijogos:**
+    - Fliperama: chuva de meteoros.
+    - Pescaria.
+    - Reforço da barricada: empilhar.
+    - Rádio: sintonizar.
+    - Vigia noturno: holofote no escuro.
+    - Horta comunitária: em tempo real.
+
+    Os prêmios voltam de tempos em tempos; no intervalo dá para jogar só por diversão.

@@ -337,6 +337,9 @@ body[data-mode="run"] .alerts { display: none; }
 .pill.home { background: linear-gradient(#dc8040, #b85a2a); }
 .pill.biz { background: linear-gradient(#5aa8f0, #2f7ad0); }
 .pill.deco { background: linear-gradient(#7ad07a, #3a9a4a); }
+body:not([data-mode="mg"]) .mg-only { display: none !important; }
+body[data-mode="mg"] .hud, body[data-mode="mg"] .alerts { display: none !important; }
+#bMgExit { position: absolute; top: 10px; right: 10px; z-index: 6; animation: none; }
 .pill:disabled { background: #b8a888; cursor: default; box-shadow: none; }
 .offer .price { display: inline-flex; gap: 4px; justify-content: center; align-items: center; font-weight: 700; color: #3a1408; font-size: 14px; }
 .offer .price .ic { width: 18px; height: 18px; }
@@ -428,6 +431,7 @@ body[data-mode="run"] .alerts { display: none; }
       </div>
     </div>
 
+    <button class="hbtn warn mg-only" id="bMgExit" type="button">✕ Sair</button>
     <div class="sheet" id="sheet" hidden></div>
   </div>
 </div>
@@ -1693,6 +1697,7 @@ body[data-mode="run"] .alerts { display: none; }
     for (const f of flashes) f.life -= dt;
     flashes = flashes.filter(f => f.life > 0);
 
+    if (mode === 'mg') { if (mg) mg.update(dt); return; }
     if (mode === 'run') { updateRun(dt); return; }
 
     // relógio
@@ -4123,7 +4128,7 @@ body[data-mode="run"] .alerts { display: none; }
     const base = () => ctx.setTransform(DPR * scale, 0, 0, DPR * scale, 0, 0);
     uiSlots = [];
     ctx.setTransform(DPR * scale, 0, 0, DPR * scale, sx * DPR * scale, 0);
-    if (mode === 'run' && run) {
+    if (mode === 'mg' && mg) { base(); mg.draw(); } else if (mode === 'run' && run) {
       drawRun();
       viewEffects();
       if (hurtFlash > 0) { ctx.fillStyle = `rgba(224,79,79,${hurtFlash * 0.6})`; ctx.fillRect(-10, 0, viewW + 20, viewH); }
@@ -4287,6 +4292,7 @@ body[data-mode="run"] .alerts { display: none; }
     initAudio();
     if (!started || sheetOpen) return;
     try { cv.setPointerCapture(e.pointerId); } catch (_) {}
+    if (mode === 'mg' && mg) { mgDown(e); return; }
     const [vx, vy] = toView(e);
     const slot = uiSlots.find(u => vx >= u.x && vx <= u.x + u.w && vy >= u.y && vy <= u.y + u.h);
     if (slot) { equip(slot.id); return; }
@@ -4308,6 +4314,7 @@ body[data-mode="run"] .alerts { display: none; }
     ptr = { id: e.pointerId, lastX: e.clientX, moved: 0, mode: 'pan' };
   });
   cv.addEventListener('pointermove', e => {
+    if (mode === 'mg') { if (mg) mgMove(e); return; }
     if (mode === 'run') {
       const [vx, vy] = toView(e);
       if ((ptr && e.pointerId === ptr.id) || e.pointerType === 'mouse') { aimX = vx; aimY = vy; }
@@ -4320,6 +4327,7 @@ body[data-mode="run"] .alerts { display: none; }
     camX -= dx / scale; camTX = null; clampCam();
   });
   const endPtr = e => {
+    if (mode === 'mg') { if (mg) mgUp(); return; }
     if (!ptr || e.pointerId !== ptr.id) return;
     if (mode === 'town' && ptr.mode === 'pan' && ptr.moved < 8 && e.type === 'pointerup') { const [wx, wy] = toWorld(e); tapTown(wx, wy); }
     ptr = null; holding = false;
@@ -4514,6 +4522,7 @@ body[data-mode="run"] .alerts { display: none; }
     }
     return `<h2>${d.name} <span class="lvl">nível ${L.lvl} · ${d.cat}</span></h2>
       ${main}
+      ${L.type === 'fliperama' ? `<div class="row"><button class="btn teal" data-act="playMG" data-id="fliper">🕹️ Jogar na máquina</button></div>` : ''}
       <h3>Funcionários (${ws.length}/3)</h3>
       <div class="list">${ws.length ? ws.map(p => personRow(p, d, 'fire', 'Dispensar', 'alt')).join('') : '<p class="note">Ninguém trabalha aqui ainda.</p>'}</div>
       ${ws.length < 3 ? `<h3>Moradores sem trabalho</h3>
@@ -4638,6 +4647,7 @@ body[data-mode="run"] .alerts { display: none; }
       <div class="row"><button class="btn green" data-act="repair" data-primary ${miss < 1 || S.coins < cost ? 'disabled' : ''}>Consertar tudo · ${coinBtn(cost)}</button>
       <button class="btn teal" data-act="repairT" ${miss < 1 || S.tokens < 2 ? 'disabled' : ''}>Consertar tudo · 2 ${TOKEN_SVG}</button></div>
       <p class="note">Funcionários de uma Serralheria consertam o portão de graça, aos poucos.</p>
+      <div class="row"><button class="btn alt" data-act="playMG" data-id="barricada">🪵 Reforçar a barricada (minijogo)</button>${isNight() ? '<button class="btn alt" data-act="playMG" data-id="vigia">🔦 Vigia noturno</button>' : ''}</div>
       <div class="grid">${upgradeOpt('gate')}${upgradeOpt('turret')}${upgradeOpt('wire')}${upgradeOpt('holofote')}${upgradeOpt('minas')}${upgradeOpt('choque')}${upgradeOpt('espantalho')}</div>
       ${petsHTML()}`;
   }
@@ -5898,7 +5908,7 @@ body[data-mode="run"] .alerts { display: none; }
       <p>${d.desc}</p>
       <p><b>+${+joyOf(L).toFixed(1)} de alegria.</b> ${L.lvl < 3 ? `No próximo nível: +${+(d.joy * (1 + 0.5 * L.lvl)).toFixed(1)}.` : ''}</p>
       <p class="note">Alegria da cidade: ${happyTxt()}. Moradores felizes vendem mais (agora ${Math.round((happyMul() - 1) * 100) >= 0 ? '+' : ''}${Math.round((happyMul() - 1) * 100)}% nas vendas). Quanto mais gente na cidade, mais decoração é preciso.</p>
-      <div class="row">${upBtn}</div>`;
+      <div class="row">${d.garden ? `<button class="btn green" data-act="openHorta" data-i="${i}" data-primary>🌱 Cuidar da horta</button>` : d.id === 'lago' || L.type === 'lago' ? '<button class="btn teal" data-act="playMG" data-id="pesca" data-primary>🎣 Pescar</button>' : ''}${d.garden ? '' : upBtn}</div>`;
   }
   MORE.push({ id: 'joy', label: `Alegria da cidade`, desc: () => `Agora: ${happyTxt()}. Decorações como praças, jardins e fontes deixam os moradores felizes, e moradores felizes vendem mais.`, open: () => { closeSheet(); setView('town'); }, btn: 'Ver a cidade', cls: 'alt' });
 
@@ -6431,6 +6441,515 @@ body[data-mode="run"] .alerts { display: none; }
   );
   // aviso no botão Mais quando há prêmio para pegar
   HOOK.hud.push(() => { const n = ALBUM.filter(albReady).length + (diaryReady() ? 1 : 0); const bd = $('hMoreBadge'); if (bd) { bd.hidden = !n; bd.textContent = n; } });
+
+  // ---------- Minijogos ----------
+  // O jogo principal pausa (mode 'mg') e o minijogo desenha na tela inteira em coordenadas de tela.
+  // Cada minijogo tem um intervalo para dar prêmio de novo; no intervalo dá para jogar só por diversão.
+  const MG = {};
+  let mg = null, mgPtr = false;
+  HOOK.state.push(() => { S.mg = S.mg || {}; S.horta = S.horta || {}; });
+  const mgSt = id => (S.mg[id] = S.mg[id] || { best: 0, last: 0, plays: 0 });
+  const mgWait = id => {
+    const d = MG[id], st = mgSt(id);
+    if (d.nightly) return st.nightDay === S.day ? 1 : 0;
+    return Math.max(0, d.cd - (Date.now() - st.last) / 1000);
+  };
+  function startMG(id) {
+    const d = MG[id];
+    if (!d || d.can() !== true) return;
+    closeSheet(); holding = false; ptr = null;
+    mg = d.create(); mg.id = id;
+    mode = 'mg'; document.body.dataset.mode = 'mg';
+    initAudio();
+  }
+  function endMG() {
+    if (!mg) return;
+    const g = mg, d = MG[g.id], res = g.result(), st = mgSt(g.id);
+    mg = null; mgPtr = false;
+    mode = 'town'; document.body.dataset.mode = 'town';
+    st.plays++;
+    const rec = res.score > st.best; if (rec) st.best = res.score;
+    const cool = mgWait(g.id) > 0, earned = res.reward && Object.values(res.reward).some(v => v > 0);
+    if (!cool && (earned || res.apply)) {
+      if (d.nightly) st.nightDay = S.day; else st.last = Date.now();
+      if (earned) giveReward(res.reward);
+      if (res.apply) res.apply();
+    }
+    track('mg');
+    persist();
+    openSheet('mgResult', { id: g.id, res, rec, cool });
+  }
+  XS.mgResult = r => {
+    const d = MG[r.id], st = mgSt(r.id), w = mgWait(r.id);
+    return `<h2>${r.res.title}</h2>
+      ${r.res.lines.map(l => `<p>${l}</p>`).join('')}
+      <p class="stat"><span>Pontos: ${fmt(r.res.score)}</span><span>Recorde: ${fmt(st.best)}</span>${r.rec && r.res.score > 0 ? '<span class="dream">Novo recorde!</span>' : ''}</p>
+      ${r.cool ? `<p class="note">Esta partida foi só por diversão. Os prêmios de ${d.name} voltam ${d.nightly ? 'na próxima noite' : 'em ' + fmtWait(w)}.</p>`
+        : r.res.reward && Object.values(r.res.reward).some(v => v > 0) ? `<p class="dream">Prêmio: ${rewardTxt(r.res.reward)}</p>` : ''}
+      ${!r.cool && r.res.applied ? `<p class="dream">${r.res.applied}</p>` : ''}
+      <div class="row"><button class="btn" data-act="playMG" data-id="${r.id}" ${d.can() === true ? '' : 'disabled'}>Jogar de novo</button><button class="btn alt" data-act="close" data-primary>Voltar para a cidade</button></div>`;
+  };
+  XA.playMG = b => { startMG(b.dataset.id); return false; };
+  $('bMgExit').addEventListener('click', () => { if (mg) { mg.quit = true; endMG(); } });
+  // entrada: o minijogo recebe toques em coordenadas de tela
+  const mgDown = e => { const [vx, vy] = toView(e); mgPtr = true; if (mg.down) mg.down(vx, vy); };
+  const mgMove = e => { if (mg.move) { const [vx, vy] = toView(e); mg.move(vx, vy, mgPtr); } };
+  const mgUp = () => { mgPtr = false; if (mg.up) mg.up(); };
+  XS.games = () => `<h2>Minijogos</h2>
+    <p class="note">Joguinhos para relaxar dentro da cidade. Cada um dá prêmio de tempos em tempos; no intervalo você pode jogar só por diversão e tentar bater o recorde.</p>
+    <div class="grid">${Object.entries(MG).map(([id, d]) => {
+      const ok = d.can(), w = mgWait(id), st = mgSt(id);
+      return `<div class="opt"><b>${d.name}</b><p>${d.desc}</p>
+        <p class="stat"><span>Recorde: ${fmt(st.best)}</span><span>${w > 0 ? (d.nightly ? 'Prêmio: na próxima noite' : 'Prêmio em ' + fmtWait(w)) : 'Prêmio disponível'}</span></p>
+        ${ok === true ? `<button class="btn" data-act="playMG" data-id="${id}">Jogar</button>` : `<p class="note">${ok}</p><button class="btn" disabled>Bloqueado</button>`}</div>`;
+    }).join('')}
+    <div class="opt"><b>Horta comunitária</b><p>Plante, regue e colha legumes em tempo real. A chuva rega sozinha. A colheita vira caixas de mercadoria.</p>
+      ${hortaLots().length ? `<button class="btn green" data-act="goHorta">Ir para a horta</button>` : '<p class="note">Construa uma Horta comunitária (decoração).</p><button class="btn" disabled>Bloqueado</button>'}</div>
+    </div>`;
+  MORE.push({ id: 'games', label: 'Minijogos', desc: () => `Fliperama, pescaria, barricada, rádio, vigia noturno e horta. ${Object.keys(MG).filter(id => MG[id].can() === true && mgWait(id) <= 0).length} com prêmio disponível.`, open: () => openSheet('games'), cls: 'teal' });
+  // telas que mostram tempo correndo se atualizam sozinhas
+  const LIVE = new Set(['horta']);
+  setInterval(() => { if (sheetOpen && LIVE.has(sheetKind)) renderSheet(); }, 1000);
+  // fundo escuro de arcade com moldura para os minijogos
+  function mgFrame(c0, c1) { ctx.fillStyle = grad(0, 0, 0, viewH, c0, c1); ctx.fillRect(0, 0, viewW, viewH); }
+  function mgHud(label, val, x, y, c = '#ffe680', align = 'left') { text(`${label} ${val}`, x, y, 15, c, align, '#1a1020', 'Luckiest Guy', 400); }
+
+  // ----- Fliperama: Chuva de Meteoros (nave fixa no centro, toque para mirar e atirar) -----
+  MG.fliper = {
+    name: 'Fliperama: Chuva de Meteoros', cd: 900,
+    desc: 'Na máquina do Fliperama: toque ou segure para mirar e atirar nos meteoros. Pontos altos dão fichas.',
+    can: () => (has('fliperama') ? true : 'Construa um Fliperama na cidade.'),
+    create() {
+      const g = { t: 0, score: 0, lives: 3, wave: 0, rocks: [], shots: [], fx: [], ang: -Math.PI / 2, aim: null, fireT: 0, inv: 1.5, overT: 0, banner: 0 };
+      const C = () => [viewW / 2, viewH / 2 + 14];
+      const newRock = (x, y, s, sp) => { const [cx, cy] = C(), a = Math.atan2(cy - y, cx - x) + rnd(-0.5, 0.5), v = sp || (28 + g.wave * 5) * (4 - s) * 0.7 + 20; return { x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, s, rot: rnd(0, TAU), vr: rnd(-1.2, 1.2), shape: Array.from({ length: 10 }, () => rnd(0.72, 1.15)) }; };
+      const wave = () => { g.wave++; g.banner = 1.6; const [cx, cy] = C(); for (let k = 0; k < 2 + g.wave; k++) { const a = rnd(0, TAU), r = Math.hypot(viewW, viewH) * 0.5 + 10; g.rocks.push(newRock(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 3)); } };
+      const boom = (x, y, n, c) => { for (let k = 0; k < n; k++) { const a = rnd(0, TAU), v = rnd(30, 160); g.fx.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: rnd(0.3, 0.8), c }); } };
+      wave();
+      return Object.assign(g, {
+        down(x, y) { g.aim = { x, y }; },
+        move(x, y, held) { if (held) g.aim = { x, y }; },
+        update(dt) {
+          g.t += dt; g.inv = Math.max(0, g.inv - dt); g.banner = Math.max(0, g.banner - dt);
+          const [cx, cy] = C();
+          if (g.lives <= 0) { g.overT += dt; if (g.overT > 1.6) endMG(); }
+          if (g.aim && g.lives > 0) {
+            const ta = Math.atan2(g.aim.y - cy, g.aim.x - cx);
+            let da = ((ta - g.ang + Math.PI * 3) % TAU) - Math.PI; g.ang += clamp(da, -9 * dt, 9 * dt);
+            g.fireT -= dt;
+            if (mgPtr && g.fireT <= 0 && Math.abs(da) < 0.35) { g.fireT = 0.17; g.shots.push({ x: cx + Math.cos(g.ang) * 16, y: cy + Math.sin(g.ang) * 16, vx: Math.cos(g.ang) * 520, vy: Math.sin(g.ang) * 520, life: 0.9 }); tone(1200, 400, 0.06, 'square', 0.03); }
+          }
+          for (const s of g.shots) { s.x += s.vx * dt; s.y += s.vy * dt; s.life -= dt; }
+          for (const r of g.rocks) {
+            r.x += r.vx * dt; r.y += r.vy * dt; r.rot += r.vr * dt;
+            if (r.x < -80 || r.x > viewW + 80 || r.y < -80 || r.y > viewH + 80) { const n = newRock(r.x, r.y, r.s); r.vx = n.vx; r.vy = n.vy; }
+          }
+          for (const s of g.shots) for (const r of g.rocks) {
+            if (s.life <= 0 || r.dead) continue;
+            if (Math.hypot(s.x - r.x, s.y - r.y) < r.s * 11) {
+              s.life = 0; r.dead = true; g.score += [0, 100, 50, 20][r.s];
+              boom(r.x, r.y, 8 + r.s * 4, '#9fffe0'); noise(0.15, 800 - r.s * 150, 'lowpass', 0.18);
+              if (r.s > 1) for (let k = 0; k < 2; k++) { const a = rnd(0, TAU), v = rnd(50, 90) + g.wave * 6; g.rocks.push({ ...newRock(r.x, r.y, r.s - 1), vx: Math.cos(a) * v, vy: Math.sin(a) * v }); }
+            }
+          }
+          if (g.lives > 0 && g.inv <= 0) for (const r of g.rocks) {
+            if (!r.dead && Math.hypot(r.x - cx, r.y - cy) < r.s * 11 + 10) {
+              g.lives--; g.inv = 2; boom(cx, cy, 30, '#ff8a6a'); sfx.boom(); shake = 0.3;
+              for (const o of g.rocks) if (Math.hypot(o.x - cx, o.y - cy) < 120) { o.dead = true; boom(o.x, o.y, 6, '#9fffe0'); }
+              break;
+            }
+          }
+          g.shots = g.shots.filter(s => s.life > 0); g.rocks = g.rocks.filter(r => !r.dead);
+          for (const p of g.fx) { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; } g.fx = g.fx.filter(p => p.life > 0);
+          if (!g.rocks.length && g.lives > 0) { g.score += 150 * g.wave; wave(); sfx.dawn(); }
+        },
+        draw() {
+          mgFrame('#06121a', '#0a0a1e');
+          const [cx, cy] = C(), t = g.t;
+          ctx.fillStyle = 'rgba(160,255,230,0.5)'; for (let k = 0; k < 60; k++) { const sx = (k * 97.3 + t * (k % 3 + 1) * 6) % viewW, sy = (k * 53.1) % viewH; ctx.fillRect(sx, sy, 1.5, 1.5); }
+          ctx.lineJoin = 'round';
+          ctx.save(); ctx.shadowColor = '#3fffd0'; ctx.shadowBlur = 8; ctx.strokeStyle = '#7fffe0'; ctx.lineWidth = 2;
+          for (const r of g.rocks) { ctx.beginPath(); r.shape.forEach((m, k) => { const a = r.rot + k / r.shape.length * TAU, rad = r.s * 11 * m; k ? ctx.lineTo(r.x + Math.cos(a) * rad, r.y + Math.sin(a) * rad) : ctx.moveTo(r.x + Math.cos(a) * rad, r.y + Math.sin(a) * rad); }); ctx.closePath(); ctx.stroke(); }
+          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5; for (const s of g.shots) { ctx.beginPath(); ctx.moveTo(s.x, s.y); ctx.lineTo(s.x - s.vx * 0.02, s.y - s.vy * 0.02); ctx.stroke(); }
+          if (g.lives > 0 && (g.inv <= 0 || Math.floor(t * 10) % 2)) {
+            ctx.save(); ctx.translate(cx, cy); ctx.rotate(g.ang); ctx.strokeStyle = '#ffe680'; ctx.shadowColor = '#ffb030'; ctx.lineWidth = 2.5;
+            ctx.beginPath(); ctx.moveTo(16, 0); ctx.lineTo(-11, -10); ctx.lineTo(-6, 0); ctx.lineTo(-11, 10); ctx.closePath(); ctx.stroke();
+            if (mgPtr) { ctx.strokeStyle = '#ff8a3a'; ctx.beginPath(); ctx.moveTo(-8, -4); ctx.lineTo(-16 - Math.random() * 6, 0); ctx.lineTo(-8, 4); ctx.stroke(); }
+            ctx.restore();
+          }
+          ctx.restore();
+          for (const p of g.fx) { ctx.globalAlpha = clamp(p.life * 2, 0, 1); ctx.fillStyle = p.c; ctx.fillRect(p.x - 1.5, p.y - 1.5, 3, 3); } ctx.globalAlpha = 1;
+          ctx.fillStyle = 'rgba(0,0,0,0.18)'; for (let y = 0; y < viewH; y += 3) ctx.fillRect(0, y, viewW, 1);
+          mgHud('PONTOS', String(g.score).padStart(5, '0'), 14, 22, '#7fffe0');
+          mgHud('ONDA', g.wave, viewW / 2, 22, '#ffe680', 'center');
+          for (let k = 0; k < g.lives; k++) { ctx.save(); ctx.translate(viewW - 190 + k * 22, 22); ctx.rotate(-Math.PI / 2); ctx.strokeStyle = '#ffe680'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(8, 0); ctx.lineTo(-6, -5); ctx.lineTo(-3, 0); ctx.lineTo(-6, 5); ctx.closePath(); ctx.stroke(); ctx.restore(); }
+          if (g.banner > 0) { ctx.globalAlpha = Math.min(1, g.banner); text(`ONDA ${g.wave}`, viewW / 2, viewH * 0.3, 30, '#ffe680', 'center', '#1a1020', 'Luckiest Guy', 400); ctx.globalAlpha = 1; }
+          if (g.t < 3 && !g.aim) text('Toque e segure para mirar e atirar', viewW / 2, viewH - 30, 15, '#ffffff', 'center', '#1a1020');
+          if (g.lives <= 0) text('FIM DE JOGO', viewW / 2, viewH * 0.42, 38, '#ff6a5a', 'center', '#1a1020', 'Luckiest Guy', 400);
+        },
+        result() {
+          const tk = g.score >= 6000 ? 2 : g.score >= 2500 ? 1 : 0;
+          return { title: 'Fliperama', score: g.score, lines: [`Você chegou à onda ${g.wave} com ${fmt(g.score)} pontos.`, tk ? '' : 'Faça 2.500 pontos para ganhar uma ficha (6.000 para duas).'].filter(Boolean), reward: { coins: Math.floor(g.score / 8), tokens: tk, xp: Math.floor(g.score / 120) } };
+        },
+      });
+    },
+  };
+
+  // ----- Pescaria no laguinho -----
+  const FISH = [
+    { name: 'Lambari', w: 30, goods: 2, zone: 0.3, sp: 1, c: '#c8d8e0' },
+    { name: 'Tilápia', w: 25, goods: 4, zone: 0.24, sp: 1.3, c: '#a8b8a0' },
+    { name: 'Traíra', w: 14, goods: 7, zone: 0.18, sp: 1.6, c: '#7a8a5a' },
+    { name: 'Tucunaré', w: 8, goods: 12, zone: 0.14, sp: 2, c: '#e0b040' },
+    { name: 'Bota velha', w: 12, goods: 0, zone: 0.34, sp: 0.8, c: '#6a4a3a', junk: true },
+    { name: 'Peixe-dourado', w: 3, goods: 5, tokens: 1, zone: 0.1, sp: 2.4, c: '#ffd23f' },
+  ];
+  MG.pesca = {
+    name: 'Pescaria', cd: 600,
+    desc: 'No Laguinho de pesca: lance a linha, espere o peixe fisgar e toque na hora certa para puxar. 6 lançamentos.',
+    can: () => (has('lago') ? true : 'Construa um Laguinho de pesca (decoração).'),
+    create() {
+      const g = { t: 0, st: 'cast', casts: 6, caught: [], msg: 'Toque para lançar a linha', msgT: 99, waitT: 0, biteT: 0, fish: null, needle: 0, dir: 1, zoneX: 0, bob: null, splash: [] };
+      const rain = () => ['chuva', 'tempestade'].includes(wxK());
+      const say = (m, d = 1.6) => { g.msg = m; g.msgT = d; };
+      const pickFish = () => { const tot = FISH.reduce((a, f) => a + f.w, 0); let r = Math.random() * tot; for (const f of FISH) { r -= f.w; if (r <= 0) return f; } return FISH[0]; };
+      const next = () => { g.casts--; g.bob = null; g.st = g.casts > 0 ? 'cast' : 'end'; if (g.st === 'cast') say('Toque para lançar de novo', 99); else { g.endT = 1.4; } };
+      return Object.assign(g, {
+        down() {
+          if (g.st === 'cast') { g.st = 'wait'; g.waitT = rnd(1.5, 4.5) * (rain() ? 0.6 : 1); g.bob = { x: viewW * rnd(0.45, 0.75), y: viewH * rnd(0.52, 0.62) }; say('Espere o peixe beliscar...', 99); sfx.bow(); g.splash.push({ x: g.bob.x, y: g.bob.y, t: 0 }); }
+          else if (g.st === 'wait') { g.waitT = rnd(1.5, 4); say('Calma! Assustou o peixe...'); }
+          else if (g.st === 'bite') { g.st = 'reel'; g.fish = pickFish(); g.needle = 0; g.dir = 1; g.zoneX = rnd(0.15, 0.85 - g.fish.zone); say('Toque quando a agulha estiver no verde!', 99); }
+          else if (g.st === 'reel') {
+            const inZone = g.needle >= g.zoneX && g.needle <= g.zoneX + g.fish.zone;
+            if (inZone) { g.caught.push(g.fish); say(g.fish.junk ? `Pescou... uma ${g.fish.name.toLowerCase()}!` : `Pegou um ${g.fish.name}!`, 1.8); sfx.coin(); g.show = { f: g.fish, t: 1.8 }; }
+            else { say('Ah, o peixe escapou!'); sfx.bad(); }
+            next();
+          }
+        },
+        update(dt) {
+          g.t += dt; g.msgT -= dt;
+          for (const s of g.splash) s.t += dt; g.splash = g.splash.filter(s => s.t < 1);
+          if (g.show) { g.show.t -= dt; if (g.show.t <= 0) g.show = null; }
+          if (g.st === 'wait') { g.waitT -= dt; if (g.waitT <= 0) { g.st = 'bite'; g.biteT = 0.95; say('Fisgou! Toque agora!', 99); tone(880, 880, 0.08, 'square', 0.06); g.splash.push({ x: g.bob.x, y: g.bob.y, t: 0 }); } }
+          else if (g.st === 'bite') { g.biteT -= dt; if (g.biteT <= 0) { say('O peixe levou a isca...'); next(); } }
+          else if (g.st === 'reel') { g.needle += g.dir * dt * 0.75 * g.fish.sp; if (g.needle > 1) { g.needle = 1; g.dir = -1; } if (g.needle < 0) { g.needle = 0; g.dir = 1; } }
+          else if (g.st === 'end') { g.endT -= dt; if (g.endT <= 0) endMG(); }
+        },
+        draw() {
+          const t = g.t, horizon = viewH * 0.42;
+          mgFrame('#9fd8f0', '#e0f4f8');
+          ctx.fillStyle = '#7aa86a'; ctx.beginPath(); ctx.moveTo(0, horizon); for (let x = 0; x <= viewW; x += 20) ctx.lineTo(x, horizon - 30 - 18 * Math.sin(x * 0.012) - 10 * Math.sin(x * 0.031)); ctx.lineTo(viewW, horizon); ctx.fill();
+          for (let k = 0; k < 9; k++) { const tx = k * viewW / 8 + 20, ty = horizon - 10; circle(tx, ty - 22, 18 + (k % 3) * 4); ctx.fillStyle = k % 2 ? '#4a8a4a' : '#5a9a4a'; ctx.fill(); }
+          ctx.fillStyle = grad(0, horizon, 0, viewH, '#4aa0c8', '#1f5a80'); ctx.fillRect(0, horizon, viewW, viewH - horizon);
+          ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 1.5; for (let k = 0; k < 14; k++) { const y = horizon + 14 + k * 14, ph = t * 0.6 + k; ctx.beginPath(); ctx.moveTo(((k * 70 + ph * 30) % (viewW + 60)) - 40, y); ctx.lineTo(((k * 70 + ph * 30) % (viewW + 60)) - 10, y); ctx.stroke(); }
+          if (rain()) { ctx.strokeStyle = 'rgba(220,235,250,0.5)'; ctx.lineWidth = 1; ctx.beginPath(); for (let k = 0; k < 60; k++) { const x = (k * 37 + t * 200) % viewW, y = (k * 71 + t * 420) % viewH; ctx.moveTo(x, y); ctx.lineTo(x - 3, y + 10); } ctx.stroke(); }
+          // deque e pescador
+          rr(-10, viewH * 0.72, viewW * 0.28, 16, 2); ctx.fillStyle = '#a0703e'; ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
+          for (let x = 10; x < viewW * 0.27; x += 40) { rr(x, viewH * 0.72 + 14, 8, viewH, 1); ctx.fillStyle = '#7a5034'; ctx.fill(); }
+          const px = viewW * 0.18, py = viewH * 0.72;
+          drawPerson(px, py, 1.6, { name: 'Pescador', skin: '#d9a273', shirt: '#3f8ae0', hair: '#6b3e26', look: { style: 'cap' } }, 0, 1, false, { idle: t });
+          const tipX = px + 90, tipY = py - 110;
+          ctx.strokeStyle = '#5a3a2a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(px + 10, py - 26); ctx.lineTo(tipX, tipY); ctx.stroke();
+          if (g.bob) {
+            const dip = g.st === 'bite' ? 6 + Math.sin(t * 30) * 3 : Math.sin(t * 3) * 1.5;
+            ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(tipX, tipY); ctx.quadraticCurveTo((tipX + g.bob.x) / 2, g.bob.y - 40, g.bob.x, g.bob.y + dip); ctx.stroke();
+            circle(g.bob.x, g.bob.y + dip, 6); ink('#e04f4f', 1.5); ctx.fillStyle = '#ffffff'; ctx.fillRect(g.bob.x - 5, g.bob.y + dip - 1, 10, 3);
+            if (g.st === 'bite') text('!', g.bob.x, g.bob.y - 26, 28, '#ffe680', 'center', INK, 'Luckiest Guy', 400);
+          }
+          for (const s of g.splash) { ctx.globalAlpha = 1 - s.t; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ell(s.x, s.y + 4, 8 + s.t * 30, 3 + s.t * 8); ctx.stroke(); } ctx.globalAlpha = 1;
+          if (g.st === 'reel') {
+            const bx = viewW * 0.3, bw = viewW * 0.5, by = viewH * 0.18;
+            rr(bx - 6, by - 6, bw + 12, 34, 10); ink('#fff4e0', 2.5);
+            rr(bx + g.zoneX * bw, by, g.fish.zone * bw, 22, 4); ctx.fillStyle = '#5bbf4a'; ctx.fill();
+            const nx = bx + g.needle * bw; rr(nx - 3, by - 8, 6, 38, 3); ink('#e04f4f', 1.5);
+          }
+          if (g.show) { const f = g.show.f; ctx.save(); ctx.translate(viewW * 0.62, viewH * 0.3 - (1.8 - g.show.t) * 10); ctx.rotate(Math.sin(t * 10) * 0.2); if (f.junk) { rr(-14, -16, 18, 24, 3); ink(f.c, 2); rr(-14, 4, 32, 10, 4); ink(f.c, 2); } else { ctx.beginPath(); ctx.ellipse(0, 0, 26, 12, 0, 0, TAU); ctx.moveTo(22, 0); ctx.lineTo(40, -12); ctx.lineTo(40, 12); ctx.closePath(); ink(f.c, 2); ctx.fillStyle = INK; circle(-14, -3, 2.5); ctx.fill(); } ctx.restore(); }
+          mgHud('LANÇAMENTOS', g.casts, 14, 22, '#ffffff');
+          mgHud('PEIXES', g.caught.filter(f => !f.junk).length, viewW - 240, 22, '#ffffff');
+          if (g.msgT > 0) text(g.msg, viewW / 2, viewH - 26, 17, '#ffffff', 'center', INK);
+        },
+        result() {
+          const fish = g.caught.filter(f => !f.junk), goods = g.caught.reduce((a, f) => a + f.goods, 0), tokens = g.caught.reduce((a, f) => a + (f.tokens || 0), 0);
+          const names = g.caught.map(f => f.name);
+          return { title: 'Pescaria', score: goods * 10 + tokens * 100, lines: [names.length ? `Você pescou: ${names.join(', ')}.` : 'Nenhum peixe desta vez.', 'Os peixes viram mercadoria para os negócios de comida.'], reward: { goods, tokens, coins: fish.length * (5 + S.level), xp: fish.length * 3 } };
+        },
+      });
+    },
+  };
+
+  // ----- Reforço da barricada: empilhar tábuas e pneus na hora certa -----
+  MG.barricada = {
+    name: 'Reforço da barricada', cd: 360,
+    desc: 'Empilhe tábuas e pneus bem alinhados. Quanto melhor a pilha, mais o portão é consertado e mais tempo ele se recupera sozinho.',
+    can: () => true,
+    create() {
+      const baseW = Math.min(260, viewW * 0.36);
+      const g = { t: 0, stack: [{ x: viewW / 2 - baseW / 2, w: baseW }], cur: null, falling: [], perfect: 0, over: false, endT: 0, total: 0, msg: '', msgT: 0 };
+      const H = 22, MAX = 12;
+      const spawn = () => { const top = g.stack[g.stack.length - 1], n = g.stack.length; g.cur = { x: n % 2 ? 6 : viewW - top.w - 6, w: top.w, dir: n % 2 ? 1 : -1, sp: 150 + n * 22, kind: n % 3 === 2 ? 'tire' : 'plank' }; };
+      spawn();
+      return Object.assign(g, {
+        down() {
+          if (!g.cur || g.over) return;
+          const top = g.stack[g.stack.length - 1], c = g.cur;
+          let l = Math.max(c.x, top.x), r = Math.min(c.x + c.w, top.x + top.w);
+          if (r - l <= 2) { g.falling.push({ ...c, y: 0, vy: 0 }); g.cur = null; g.over = true; g.endT = 1.2; sfx.bad(); g.msg = 'Caiu tudo!'; g.msgT = 2; return; }
+          if (Math.abs(c.x - top.x) < 5) { l = top.x; r = top.x + top.w; g.perfect++; g.msg = 'Perfeito!'; g.msgT = 0.9; sfx.coin(); }
+          else { sfx.thud(); if (c.x < l) g.falling.push({ x: c.x, w: l - c.x, y: 0, vy: 0, kind: c.kind, n: g.stack.length }); if (c.x + c.w > r) g.falling.push({ x: r, w: c.x + c.w - r, y: 0, vy: 0, kind: c.kind, n: g.stack.length }); }
+          g.stack.push({ x: l, w: r - l, kind: c.kind }); g.total += (r - l) / baseW;
+          if (g.stack.length > MAX) { g.cur = null; g.over = true; g.endT = 1.2; g.msg = 'Barricada pronta!'; g.msgT = 2; sfx.dawn(); }
+          else spawn();
+        },
+        update(dt) {
+          g.t += dt; g.msgT -= dt;
+          if (g.cur) { g.cur.x += g.cur.dir * g.cur.sp * dt; if (g.cur.x < 0) g.cur.dir = 1; if (g.cur.x + g.cur.w > viewW) g.cur.dir = -1; }
+          for (const f of g.falling) { f.vy += 600 * dt; f.y += f.vy * dt; }
+          if (g.over) { g.endT -= dt; if (g.endT <= 0) endMG(); }
+        },
+        draw() {
+          mgFrame('#f4c46a', '#e88a3a');
+          const n = g.stack.length, camY = Math.max(0, (n - 8) * H), base = viewH - 30 + camY;
+          ctx.fillStyle = '#6a5a4a'; ctx.fillRect(0, base, viewW, 40);
+          const piece = (x, y, w, kind, k) => {
+            if (kind === 'tire') { for (let q = 0; q < Math.max(1, Math.round(w / 34)); q++) { const tw = w / Math.max(1, Math.round(w / 34)); ell(x + tw * (q + 0.5), y + H / 2, tw / 2, H / 2); ink('#3a3a42', 1.8); ell(x + tw * (q + 0.5), y + H / 2, tw / 5, H / 5); ctx.fillStyle = '#1a1a20'; ctx.fill(); } return; }
+            rr(x, y, w, H, 3); ctx.fillStyle = grad(0, y, 0, y + H, k % 2 ? '#d8a060' : '#c88a4e', '#9a6034'); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = '#5a3418'; ctx.stroke();
+            ctx.fillStyle = '#5a6672'; circle(x + 6, y + H / 2, 2); ctx.fill(); circle(x + w - 6, y + H / 2, 2); ctx.fill();
+          };
+          g.stack.forEach((s, k) => { if (k === 0) { rr(s.x - 10, base - H, s.w + 20, H, 3); ink('#8a949e', 2); return; } piece(s.x, base - (k + 1) * H, s.w, s.kind, k); });
+          if (g.cur) piece(g.cur.x, base - (n + 1) * H, g.cur.w, g.cur.kind, n);
+          for (const f of g.falling) piece(f.x, base - ((f.n || n) + 1) * H + f.y, f.w, f.kind, 1);
+          mgHud('PEÇAS', `${n - 1}/${MAX}`, 14, 22, '#ffffff');
+          mgHud('PERFEITAS', g.perfect, viewW - 260, 22, '#ffffff');
+          if (g.msgT > 0) text(g.msg, viewW / 2, viewH * 0.3, 30, '#fff8e4', 'center', '#5a1a0a', 'Luckiest Guy', 400);
+          if (g.t < 3 && n === 1) text('Toque para soltar a peça em cima da pilha', viewW / 2, viewH * 0.45, 16, '#ffffff', 'center', '#5a1a0a');
+        },
+        result() {
+          const q = clamp(g.total / MAX, 0, 1), fix = Math.round(gateMax() * 0.6 * q), regen = Math.round(180 * q);
+          return { title: 'Reforço da barricada', score: Math.round(q * 1000) + g.perfect * 50, lines: [`Você empilhou ${g.stack.length - 1} peças, ${g.perfect} perfeitas.`],
+            reward: { xp: Math.round(10 * q) }, apply: fix > 0 ? () => { S.gateHp = Math.min(gateMax(), S.gateHp + fix); S.fortT = Math.max(S.fortT || 0, regen); } : null,
+            applied: fix > 0 ? `Portão consertado em ${fix} pontos e se recuperando sozinho por ${fmtWait(regen)}.` : '' };
+        },
+      });
+    },
+  };
+  HOOK.update.push(dt => { if (S.fortT > 0) { S.fortT -= dt; S.gateHp = Math.min(gateMax(), S.gateHp + 1.2 * dt); } });
+  HOOK.hud.push(ev => { if (S.fortT > 0) ev.push(`<span class="chip ev" style="background:#e3f6cf">Barricada reforçada · ${Math.ceil(S.fortT)}s</span>`); });
+
+  // ----- Rádio: girar o dial até achar um sinal -----
+  const RADIO_MSG = [
+    { txt: '“Aqui é a família Souza, estamos perto da estrada! Vamos até o portão!”', kind: 'survivor' },
+    { txt: '“Comboio passando. Deixamos umas caixas na entrada da cidade de vocês.”', kind: 'goods' },
+    { txt: '“Achamos um depósito cheio de coisa boa. Vou passar as coordenadas...”', kind: 'map' },
+    { txt: '“Rádio Pirata Barricada, tocando os sucessos do fim do mundo! E hoje tem brinde!”', kind: 'token' },
+    { txt: '“Alô, alô! A feira da rua de baixo está vendendo sobras baratinho!”', kind: 'coins' },
+  ];
+  MG.radio = {
+    name: 'Rádio', cd: 720,
+    desc: 'Arraste o dial devagar até o chiado sumir e segure no sinal. Cada sinal traz sobreviventes, caixas ou moedas.',
+    can: () => (S.level >= 2 ? true : 'Libera no nível 2.'),
+    create() {
+      const g = { t: 0, f: 98, target: rnd(89, 107), lock: 0, found: [], left: 50, msg: '', msgT: 0, noiseT: 0, endT: 0 };
+      const bar = () => ({ x: viewW * 0.1, w: viewW * 0.8, y: viewH * 0.62 });
+      const setF = x => { const b = bar(); g.f = clamp(88 + (x - b.x) / b.w * 20, 88, 108); };
+      const newTarget = () => { let t; do { t = rnd(88.6, 107.4); } while (Math.abs(t - g.f) < 4); g.target = t; g.lock = 0; };
+      return Object.assign(g, {
+        down(x) { setF(x); }, move(x, y, held) { if (held) setF(x); },
+        update(dt) {
+          g.t += dt; g.msgT -= dt;
+          if (g.endT > 0) { g.endT -= dt; if (g.endT <= 0) endMG(); return; }
+          g.left -= dt;
+          if (g.left <= 0 || g.found.length >= 3) { g.endT = 1.2; return; }
+          const d = Math.abs(g.f - g.target), s = Math.max(0, 1 - d / 2.5);
+          g.noiseT -= dt;
+          if (g.noiseT <= 0) { g.noiseT = 0.12; noise(0.12, 2500, 'bandpass', 0.09 * (1 - s) + 0.01); if (s > 0.4) tone(300 + s * 900, 300 + s * 900, 0.05, 'sine', 0.03 * s); }
+          if (d < 0.3) { g.lock += dt; if (g.lock >= 1.2) { const m = pick(RADIO_MSG.filter(x => x.kind !== 'token' || Math.random() < 0.35)); g.found.push(m); g.msg = m.txt; g.msgT = 4; sfx.radio(); newTarget(); } }
+          else g.lock = Math.max(0, g.lock - dt);
+        },
+        draw() {
+          mgFrame('#3a2a2a', '#1a1214');
+          const b = bar(), d = Math.abs(g.f - g.target), s = Math.max(0, 1 - d / 2.5), t = g.t;
+          rr(viewW * 0.05, viewH * 0.12, viewW * 0.9, viewH * 0.74, 22); ctx.fillStyle = grad(0, viewH * 0.12, 0, viewH * 0.86, '#c8864a', '#8a5030'); ctx.fill(); ctx.lineWidth = 4; ctx.strokeStyle = '#3a1a0a'; ctx.stroke();
+          rr(viewW * 0.09, viewH * 0.18, viewW * 0.82, viewH * 0.3, 10); ctx.fillStyle = '#1a2a24'; ctx.fill(); ctx.stroke();
+          ctx.save(); rr(viewW * 0.09, viewH * 0.18, viewW * 0.82, viewH * 0.3, 10); ctx.clip();
+          for (let k = 0; k < 220 * (1 - s); k++) { ctx.fillStyle = `rgba(200,255,220,${Math.random() * 0.5})`; ctx.fillRect(viewW * 0.09 + Math.random() * viewW * 0.82, viewH * 0.18 + Math.random() * viewH * 0.3, 2, 2); }
+          ctx.strokeStyle = `rgba(120,255,170,${0.3 + 0.7 * s})`; ctx.lineWidth = 2; ctx.beginPath();
+          for (let x = 0; x <= viewW * 0.82; x += 4) { const y = viewH * 0.33 + Math.sin(x * 0.08 + t * 12) * 22 * s + (Math.random() - 0.5) * 18 * (1 - s); x ? ctx.lineTo(viewW * 0.09 + x, y) : ctx.moveTo(viewW * 0.09 + x, y); }
+          ctx.stroke(); ctx.restore();
+          rr(b.x - 8, b.y - 22, b.w + 16, 44, 8); ctx.fillStyle = '#f4e4c4'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#3a1a0a'; ctx.stroke();
+          for (let f = 88; f <= 108; f += 1) { const x = b.x + (f - 88) / 20 * b.w; ctx.fillStyle = '#3a1a0a'; ctx.fillRect(x - 1, b.y - (f % 2 ? 6 : 12), 2, f % 2 ? 6 : 12); if (f % 4 === 0) text(String(f), x, b.y + 12, 10, '#3a1a0a', 'center', null); }
+          const nx = b.x + (g.f - 88) / 20 * b.w; rr(nx - 2.5, b.y - 26, 5, 52, 2); ctx.fillStyle = '#e04f4f'; ctx.fill();
+          text(`${g.f.toFixed(1).replace('.', ',')} MHz`, viewW / 2, viewH * 0.8, 22, '#fff4e0', 'center', '#3a1a0a', 'Luckiest Guy', 400);
+          if (g.lock > 0) { rr(viewW / 2 - 60, viewH * 0.52 - 20, 120, 8, 4); ctx.fillStyle = '#3a1a0a'; ctx.fill(); ctx.fillStyle = '#7cdf5a'; ctx.fillRect(viewW / 2 - 59, viewH * 0.52 - 19, 118 * g.lock / 1.2, 6); }
+          mgHud('SINAIS', `${g.found.length}/3`, 14, 22, '#ffffff');
+          mgHud('TEMPO', Math.max(0, Math.ceil(g.left)), viewW - 220, 22, '#ffffff');
+          if (g.msgT > 0) { rr(viewW * 0.12, viewH * 0.2, viewW * 0.76, viewH * 0.26, 8); ctx.fillStyle = 'rgba(20,40,30,0.92)'; ctx.fill(); const words = g.msg.split(' '); let line = '', y = viewH * 0.27; for (const w of words) { if ((line + w).length > 48) { text(line, viewW / 2, y, 14, '#c8ffd8', 'center', null); line = ''; y += 20; } line += w + ' '; } text(line, viewW / 2, y, 14, '#c8ffd8', 'center', null); }
+          else if (g.t < 4) text('Arraste o dial devagar até o chiado sumir', viewW / 2, viewH * 0.33, 16, '#c8ffd8', 'center', null);
+        },
+        result() {
+          const L = S.level, out = [];
+          let coins = 0, goods = 0, tokens = 0, surv = 0;
+          for (const m of g.found) {
+            if (m.kind === 'survivor') surv++;
+            else if (m.kind === 'goods') goods += 14 + L * 2;
+            else if (m.kind === 'map' || m.kind === 'coins') coins += 120 + L * 20;
+            else if (m.kind === 'token') tokens++;
+          }
+          if (surv) out.push(`${surv} sobrevivente${surv > 1 ? 's' : ''} a caminho do portão.`);
+          return { title: 'Rádio', score: g.found.length * 100, lines: [g.found.length ? `Você captou ${g.found.length} sinal${g.found.length > 1 ? 'is' : ''}.` : 'Só chiado desta vez.', ...out], reward: { coins, goods, tokens, xp: g.found.length * 5 },
+            apply: surv ? () => { for (let k = 0; k < surv; k++) spawnSurvivor({ x: WORLD_W + 10 + k * 40 }); } : null };
+        },
+      });
+    },
+  };
+
+  // ----- Vigia noturno: holofote no escuro -----
+  MG.vigia = {
+    name: 'Vigia noturno', nightly: true,
+    desc: 'Só à noite: arraste o holofote pelo escuro e toque nos zumbis iluminados antes que cheguem perto. Uma vez por noite com prêmio.',
+    can: () => (isNight() ? true : 'Só dá para vigiar à noite.'),
+    create() {
+      const g = { t: 0, left: 40, hearts: 3, kills: 0, zs: [], spawnT: 0.5, light: { x: viewW / 2, y: viewH / 2 }, flash: 0, endT: 0 };
+      const R = () => Math.min(viewW, viewH) * 0.2;
+      const horizon = () => viewH * 0.3;
+      const pos = z => { const k = 0.35 + z.d * 1.25; return { x: z.x * viewW, y: horizon() + z.d * (viewH - horizon() - 10), k }; };
+      return Object.assign(g, {
+        down(x, y) {
+          g.light = { x, y };
+          for (const z of g.zs) {
+            if (z.dead) continue;
+            const p = pos(z);
+            if (Math.hypot(p.x - x, p.y - 40 * p.k - y) < 34 * p.k + 10 && Math.hypot(p.x - g.light.x, p.y - 30 * p.k - g.light.y) < R() + 20) {
+              z.hp--; z.flash = 0.1; sfx.shot();
+              if (z.hp <= 0) { z.dead = true; g.kills++; sfx.squish(); }
+              break;
+            }
+          }
+        },
+        move(x, y) { g.light = { x, y }; },
+        update(dt) {
+          g.t += dt; g.flash = Math.max(0, g.flash - dt);
+          if (g.endT > 0) { g.endT -= dt; if (g.endT <= 0) endMG(); return; }
+          g.left -= dt;
+          if (g.left <= 0 || g.hearts <= 0) { g.endT = 1.2; return; }
+          g.spawnT -= dt;
+          if (g.spawnT <= 0) { g.spawnT = Math.max(0.6, 2 - g.t * 0.03); g.zs.push({ type: Math.random() < 0.15 ? 'brute' : Math.random() < 0.3 ? 'runner' : 'walker', x: rnd(0.08, 0.92), d: 0, hp: 1, flash: 0, state: 'walk', t: rnd(0, 5), var: rint(0, 9) }); const z = g.zs[g.zs.length - 1]; z.hp = z.type === 'brute' ? 3 : 1; z.sp = z.type === 'runner' ? 0.11 : 0.065; }
+          for (const z of g.zs) {
+            if (z.dead) continue;
+            z.t += dt; z.flash = Math.max(0, z.flash - dt); z.d += z.sp * dt;
+            if (z.d >= 1) { z.dead = true; g.hearts--; g.flash = 0.4; sfx.thud(); }
+          }
+          g.zs = g.zs.filter(z => !z.dead || false);
+        },
+        draw() {
+          const t = g.t, hz = horizon();
+          mgFrame('#0a0a1e', '#1a1430');
+          ctx.fillStyle = '#14122a'; for (let k = 0; k < 14; k++) { const bw = viewW / 12, bh = 40 + (k * 37) % 70; ctx.fillRect(k * bw - 10, hz - bh, bw - 6, bh); }
+          ctx.fillStyle = '#22203a'; ctx.fillRect(0, hz, viewW, viewH - hz);
+          const sorted = g.zs.slice().sort((a, b) => a.d - b.d);
+          for (const z of sorted) {
+            const p = pos(z), lit = Math.hypot(p.x - g.light.x, p.y - 30 * p.k - g.light.y) < R() + 10;
+            if (lit) drawZombie(z, p.x, p.y, p.k, z.x < 0.5 ? 1 : -1);
+          }
+          // escuridão com o círculo do holofote
+          ctx.save(); ctx.fillStyle = 'rgba(4,4,14,0.86)'; ctx.beginPath(); ctx.rect(0, 0, viewW, viewH); ctx.arc(g.light.x, g.light.y, R(), 0, TAU, true); ctx.fill('evenodd');
+          const lg = ctx.createRadialGradient(g.light.x, g.light.y, R() * 0.6, g.light.x, g.light.y, R()); lg.addColorStop(0, 'rgba(4,4,14,0)'); lg.addColorStop(1, 'rgba(4,4,14,0.6)'); ctx.fillStyle = lg; circle(g.light.x, g.light.y, R()); ctx.fill();
+          ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = 'rgba(255,240,180,0.12)'; circle(g.light.x, g.light.y, R()); ctx.fill(); ctx.restore();
+          for (const z of sorted) { if (z.dead) continue; const p = pos(z); if (Math.hypot(p.x - g.light.x, p.y - 30 * p.k - g.light.y) >= R() + 10) { const ey = p.y - 46 * p.k, er = Math.max(2.2, 2.4 * p.k); ctx.fillStyle = 'rgba(255,220,80,0.25)'; circle(p.x, ey, er * 4); ctx.fill(); ctx.fillStyle = 'rgba(255,240,120,0.95)'; circle(p.x - 5.5 * p.k, ey, er); ctx.fill(); circle(p.x + 5.5 * p.k, ey, er); ctx.fill(); } }
+          if (g.flash > 0) { ctx.fillStyle = `rgba(224,79,79,${g.flash})`; ctx.fillRect(0, 0, viewW, viewH); }
+          mgHud('ZUMBIS', g.kills, 14, 22, '#ffe680');
+          text('♥'.repeat(g.hearts) + '♡'.repeat(3 - g.hearts), viewW / 2, 22, 20, '#ff6a6a', 'center', '#1a1020');
+          mgHud('TEMPO', Math.max(0, Math.ceil(g.left)), viewW - 220, 22, '#ffe680');
+          if (g.t < 3) text('Arraste a luz e toque nos zumbis iluminados', viewW / 2, viewH - 24, 15, '#ffffff', 'center', '#1a1020');
+        },
+        result() {
+          return { title: 'Vigia noturno', score: g.kills * 10 + g.hearts * 20, lines: [`Você derrubou ${g.kills} zumbis no escuro${g.hearts ? ` e ainda sobraram ${g.hearts} corações` : ''}.`], reward: { coins: g.kills * (6 + S.day), xp: g.kills } };
+        },
+      });
+    },
+  };
+
+  // ----- Horta comunitária e Laguinho de pesca (decorações com atividade) -----
+  Object.assign(BLD, {
+    horta: { name: 'Horta comunitária', cost: 160, lvl: 2, deco: true, joy: 1, garden: true, shape: true, body: '#7cbf4a', roof: '#8a5a3a', h: 0, desc: 'Canteiros para plantar, regar e colher. A colheita vira caixas de mercadoria.' },
+    lago: { name: 'Laguinho de pesca', cost: 200, lvl: 2, deco: true, joy: 2, shape: true, body: '#4aa0c8', roof: '#a0703e', h: 0, desc: 'Um laguinho com deque de madeira. Dá para pescar!' },
+  });
+  const CROPS = {
+    alface: { name: 'Alface', icon: '🥬', min: 3, cost: 20, goods: 6 },
+    cenoura: { name: 'Cenoura', icon: '🥕', min: 6, cost: 35, goods: 10 },
+    tomate: { name: 'Tomate', icon: '🍅', min: 10, cost: 60, goods: 16 },
+    abobora: { name: 'Abóbora', icon: '🎃', min: 25, cost: 120, goods: 35, token: 0.15 },
+  };
+  const hortaLots = () => S.lots.map((L, i) => (L && i < S.lotsOpen && L.type === 'horta' && !(L.build > 0) ? i : -1)).filter(i => i >= 0);
+  const plotsOf = i => { const n = 2 + 2 * S.lots[i].lvl, a = S.horta[i] = S.horta[i] || []; while (a.length < n) a.push(null); return a; };
+  const plotProg = p => (p ? clamp((Date.now() - p.t0) / 1000 * (1 + 0.35 * (p.w || 0)) / (CROPS[p.c].min * 60), 0, 1) : 0);
+  // a chuva rega tudo sozinha (o progresso é recalculado para continuar de onde estava)
+  const water = p => { const pr = plotProg(p); p.w = Math.min(2, (p.w || 0) + 1); p.t0 = Date.now() - pr * CROPS[p.c].min * 60 * 1000 / (1 + 0.35 * p.w); };
+  HOOK.update.push(() => { if (!['chuva', 'tempestade'].includes(wxK())) return; for (const i of hortaLots()) for (const p of plotsOf(i)) if (p && (p.w || 0) < 2) water(p); });
+  XA.openHorta = b => { openSheet('horta', +b.dataset.i); return false; };
+  XA.goHorta = () => { const i = hortaLots()[0]; if (i === undefined) return false; camTX = clamp(lotX(i) + LOT_W / 2 - viewW / 2, 0, camMax()); openSheet('horta', i); return false; };
+  XS.horta = i => {
+    const L = S.lots[i]; if (!L) return '';
+    const plots = plotsOf(i), rain = ['chuva', 'tempestade'].includes(wxK());
+    return `<h2>Horta comunitária <span class="lvl">nível ${L.lvl} · ${plots.length} canteiros</span></h2>
+      <p class="note">Plante, regue (até 2 vezes, cada rega acelera 35%) e colha. As plantas crescem mesmo com o jogo fechado.${rain ? ' Está chovendo: a chuva rega tudo sozinha!' : ''}</p>
+      <div class="grid">${plots.map((p, k) => {
+        if (!p) return `<div class="opt"><b>Canteiro ${k + 1}: vazio</b><div class="row" style="justify-content:flex-start;gap:6px">${Object.entries(CROPS).map(([c, d]) => `<button class="btn sm" data-act="plant" data-i="${i}" data-k="${k}" data-c="${c}" ${S.coins < d.cost ? 'disabled' : ''} title="${d.name}: ${d.min} min, ${d.goods} caixas">${d.icon} ${d.cost}</button>`).join('')}</div><p class="note">Alface 3 min · Cenoura 6 · Tomate 10 · Abóbora 25</p></div>`;
+        const d = CROPS[p.c], pr = plotProg(p), left = (1 - pr) * d.min * 60 / (1 + 0.35 * (p.w || 0));
+        return `<div class="opt${pr >= 1 ? ' on' : ''}"><b>${d.icon} ${d.name}</b><div class="prog small"><i style="width:${pr * 100}%"></i></div>
+          <p>${pr >= 1 ? `Pronto! ${d.goods} caixas` : `Fica pronto em ${fmtWait(left)}`} · regado ${p.w || 0}/2</p>
+          ${pr >= 1 ? `<button class="btn green" data-act="harvest" data-i="${i}" data-k="${k}">Colher</button>` : `<button class="btn teal" data-act="waterP" data-i="${i}" data-k="${k}" ${(p.w || 0) >= 2 ? 'disabled' : ''}>💧 Regar</button>`}</div>`;
+      }).join('')}</div>
+      <div class="row">${L.lvl < 3 ? `<button class="btn alt" data-act="upHorta" data-i="${i}" ${S.coins < upCost(L) ? 'disabled' : ''}>Mais canteiros (nível ${L.lvl + 1}) · ${coinBtn(upCost(L))}</button>` : ''}</div>`;
+  };
+  XA.plant = b => { const i = +b.dataset.i, k = +b.dataset.k, d = CROPS[b.dataset.c], plots = plotsOf(i); if (plots[k] || S.coins < d.cost) return false; S.coins -= d.cost; plots[k] = { c: b.dataset.c, t0: Date.now(), w: 0 }; sfx.build(); };
+  XA.waterP = b => { const p = plotsOf(+b.dataset.i)[+b.dataset.k]; if (!p || (p.w || 0) >= 2) return false; water(p); noise(0.3, 3000, 'highpass', 0.08); };
+  XA.harvest = b => {
+    const plots = plotsOf(+b.dataset.i), k = +b.dataset.k, p = plots[k];
+    if (!p || plotProg(p) < 1) return false;
+    const d = CROPS[p.c]; plots[k] = null;
+    S.goods = Math.min(GOODS_MAX, S.goods + d.goods); gainXP(2 + Math.round(d.min / 3)); track('harvest');
+    let msg = `Colheu ${d.name.toLowerCase()}: +${d.goods} caixas`;
+    if (d.token && Math.random() < d.token) { S.tokens++; msg += ' e 1 ficha'; }
+    toast(msg + '!', 'good'); sfx.coin();
+  };
+  XA.upHorta = b => { const L = S.lots[+b.dataset.i], c = upCost(L); if (!L || L.lvl >= 3 || S.coins < c) return false; S.coins -= c; L.lvl++; sfx.build(); };
+  LIVE.add('horta');
+  Object.assign(SHAPES, {
+    horta(o) {
+      const { x, cx, L, nf, t, D, i } = o, G = GROUND;
+      const plots = !previewMode && S.horta[i] ? S.horta[i] : [];
+      ctx.strokeStyle = D('#c8a060'); ctx.lineWidth = 2; ctx.beginPath(); for (let k = x; k <= x + 130; k += 10) { ctx.moveTo(k, G); ctx.lineTo(k, G - 14); } ctx.moveTo(x, G - 10); ctx.lineTo(x + 130, G - 10); ctx.stroke();
+      const n = 2 + 2 * L.lvl, bw = 124 / n;
+      for (let k = 0; k < n; k++) {
+        const bx = x + 3 + k * bw, p = plots[k], pr = p ? plotProg(p) : 0;
+        rr(bx + 1, G - 22, bw - 3, 14, 2); ink(D('#8a5a3a'), 1.3); ctx.fillStyle = D('#5a3a24'); ctx.fillRect(bx + 3, G - 21, bw - 7, 4);
+        const crop = p ? p.c : (previewMode ? ['alface', 'cenoura', 'tomate', 'abobora'][k % 4] : null), g2 = previewMode ? 0.8 : pr;
+        if (!crop) continue;
+        const pxx = bx + bw / 2 - 1, h = 6 + 22 * g2;
+        ctx.strokeStyle = D('#4a9a3a'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(pxx, G - 21); ctx.lineTo(pxx, G - 21 - h); ctx.stroke();
+        for (const s of [-1, 1]) { ell(pxx + s * 4, G - 21 - h * 0.6, 4, 2.2 + g2); ctx.fillStyle = D('#5bbf4a'); ctx.fill(); }
+        if (g2 > 0.6) { const c = { alface: '#7cdf5a', cenoura: '#f08a3c', tomate: '#e0302a', abobora: '#f0842a' }[crop]; circle(pxx, G - 21 - h, crop === 'abobora' ? 6 : 4); ink(D(c), 1); }
+        if (pr >= 1) { ctx.fillStyle = '#ffe680'; circle(pxx + 6, G - 26 - h, 2 + Math.sin(t * 6 + k)); ctx.fill(); }
+      }
+      // regador e espantalhinho
+      rr(x + 112, G - 46, 3, 46, 1); ink(D('#7a5034'), 1); rr(x + 106, G - 44, 15, 12, 2); ink(D('#e04f4f'), 1); circle(x + 113, G - 50, 6); ink(D('#f4e4c4'), 1.1);
+      rr(x + 4, G - 34, 14, 12, 3); ink(D('#3f8ae0'), 1.2); ctx.strokeStyle = D('#3f8ae0'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 18, G - 30); ctx.lineTo(x + 26, G - 36); ctx.stroke();
+      const p = idlers(i, 1)[0]; if (p) drawPerson(x + 60, G + 6, 0.62, p, 0, 1, false, { idle: t + p.id });
+      return { ib: G - 70 };
+    },
+    lago(o) {
+      const { x, cx, L, nf, t, D, i } = o, G = GROUND;
+      ell(cx + 10, G - 6, 56 + L.lvl * 3, 12); ink(D('#6a8a4a'), 2);
+      ell(cx + 10, G - 7, 50 + L.lvl * 3, 9); ctx.fillStyle = grad(0, G - 16, 0, G, D('#7ac8f0'), D('#3a88b8')); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.lineWidth = 1; for (let k = 0; k < 3; k++) { const ph = (t * 0.5 + k / 3) % 1; ctx.globalAlpha = 1 - ph; ell(cx + 10 + (k - 1) * 24, G - 7, 4 + ph * 12, 1 + ph * 3); ctx.stroke(); } ctx.globalAlpha = 1;
+      const jump = (t * 0.4 + i) % 3; if (jump < 0.5) { const u = jump / 0.5; ctx.save(); ctx.translate(cx + 30 + u * 20, G - 8 - Math.sin(u * Math.PI) * 26); ctx.rotate(-0.8 + u * 1.6); ctx.beginPath(); ctx.ellipse(0, 0, 7, 3.5, 0, 0, TAU); ctx.moveTo(6, 0); ctx.lineTo(11, -3); ctx.lineTo(11, 3); ctx.closePath(); ink('#e0b040', 1); ctx.restore(); }
+      for (const rx of [x + 104, x + 112, x + 120]) { ctx.strokeStyle = D('#5a8a3a'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(rx, G - 6); ctx.quadraticCurveTo(rx - 3, G - 24, rx + 2, G - 36); ctx.stroke(); rr(rx, G - 38, 3, 9, 1.5); ink(D('#7a5034'), 0.8); }
+      rr(x - 2, G - 20, 52, 6, 1); ink(D('#a0703e'), 1.4); for (const px of [x + 4, x + 22, x + 40]) { rr(px, G - 15, 4, 15, 1); ink(D('#7a5034'), 1); }
+      const p = idlers(i, 1)[0];
+      if (p) { drawPerson(x + 26, G - 20, 0.66, p, 0, 1, false, { idle: t + p.id }); ctx.strokeStyle = D('#5a3a2a'); ctx.lineWidth = 1.6; ctx.beginPath(); ctx.moveTo(x + 32, G - 32); ctx.lineTo(x + 64, G - 58); ctx.stroke(); ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 0.8; ctx.beginPath(); ctx.moveTo(x + 64, G - 58); ctx.lineTo(x + 74, G - 8); ctx.stroke(); circle(x + 74, G - 8 + Math.sin(t * 3), 2.2); ink('#e04f4f', 0.8); }
+      return { ib: G - 70 };
+    },
+  });
 
   // ---------- Laço ----------
   let last = performance.now();

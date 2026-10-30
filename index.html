@@ -571,7 +571,7 @@ body[data-mode="run"] .alerts { display: none; }
   // ---------- Extensões ----------
   // Menus (XS), ações de botão (XA) e ganchos usados pelos sistemas novos (clima, eventos, minijogos...).
   const XS = {}, XA = {};
-  const HOOK = { state: [], update: [], dawn: [], night: [], kill: [], begin: [], worldBack: [], worldFront: [], screen: [], zspeed: [], biz: [], hud: [] };
+  const HOOK = { state: [], update: [], dawn: [], night: [], kill: [], begin: [], worldBack: [], worldFront: [], screen: [], zspeed: [], biz: [], hud: [], spawn: [] };
   const runHooks = (name, ...a) => { for (const f of HOOK[name]) f(...a); };
   const mulHooks = (name, ...a) => HOOK[name].reduce((m, f) => m * f(...a), 1);
 
@@ -908,6 +908,7 @@ body[data-mode="run"] .alerts { display: none; }
     }
     const t = ZT[type], hp = Math.ceil(t.hp * (1 + 0.15 * (d - 1)));
     const z = { type, x: x ?? WORLD_W - rnd(0, 40), lane: rnd(-0.85, 0.85), stopOff: rnd(0, 18), y: GROUND + rnd(-10, 16), hp, max: hp, helmet: t.helmet ? Math.ceil(t.helmet * (1 + 0.1 * (d - 1))) : 0, spd: t.spd * rnd(0.85, 1.15), t: rnd(0, 5), flash: 0, atkT: 0.5, state: 'walk', flee: false, var: rint(0, 9) };
+    runHooks('spawn', z);
     zombies.push(z);
     return z;
   }
@@ -3805,6 +3806,7 @@ body[data-mode="run"] .alerts { display: none; }
       const arm = opts.idle !== undefined ? Math.sin(opts.idle * 4) * 1.5 : sw;
       rr(3.5, -19 + arm * 0.3, 4.5, 9, 2); O(shirt, 1.3); circle(5.8, -9.5 + arm * 0.3, 2.4); O(skin, 1.1);
     }
+    personExtra(p, O);
     // cabeça grande e quadradona
     const hx = 1, hy = -32;
     if (lk.long && lk.style !== 'bald') { ctx.beginPath(); ctx.moveTo(hx - 14, hy - 6); ctx.quadraticCurveTo(hx - 20, hy + 10, hx - 13, hy + 16); ctx.lineTo(hx - 4, hy + 14); ctx.lineTo(hx - 6, hy - 6); ctx.closePath(); O(hair, 1.4); }
@@ -3847,6 +3849,7 @@ body[data-mode="run"] .alerts { display: none; }
         rr(hx - 17, top + 5, 36, 4, 1.5); O('#4a5a3a', 1.3); break;
       default: ctx.fillStyle = 'rgba(255,255,255,0.45)'; ell(hx + 4, top + 4, 5, 2.2); ctx.fill();
     }
+    personHat(p, O, hx, hy);
     ctx.restore();
   }
 
@@ -4039,6 +4042,7 @@ body[data-mode="run"] .alerts { display: none; }
       ctx.beginPath(); ctx.moveTo(hx - 9, hy - 17); ctx.lineTo(hx - 10, hy - 28); ctx.lineTo(hx - 4, hy - 21); ctx.lineTo(hx, hy - 30); ctx.lineTo(hx + 4, hy - 21); ctx.lineTo(hx + 10, hy - 28); ctx.lineTo(hx + 9, hy - 17); ctx.closePath(); O('#ffe680', 1.4);
       if (Math.random() < 0.35) { ctx.fillStyle = '#fff8c0'; circle(rnd(-20, 18), rnd(-64, -10), 1.8); ctx.fill(); }
     }
+    if (z.hat) zHat(z.hat, hx, hy, O);
     if (z.type === 'giant') { ctx.strokeStyle = INK; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(hx + 2, hy - 18); ctx.lineTo(hx + 10, hy - 4); for (let q = 0; q < 4; q++) { ctx.moveTo(hx + 3 + q * 2, hy - 15 + q * 3); ctx.lineTo(hx + 7 + q * 2, hy - 17 + q * 3); } ctx.stroke(); }
     ctx.restore();
     const tt = performance.now() / 1000 + v * 1.3;
@@ -4262,6 +4266,7 @@ body[data-mode="run"] .alerts { display: none; }
     initAudio();
     if (b.dataset.ev === 'request' && S.request) openSheet('request');
     if (b.dataset.ev === 'trader' && trader) openSheet('trade');
+    if (b.dataset.ev === 'weather') openSheet('weather');
   });
 
   // ---------- Entrada ----------
@@ -5029,6 +5034,334 @@ body[data-mode="run"] .alerts { display: none; }
     runHooks('begin', isNew);
     updateHUD();
   }
+
+  // ---------- Clima, estações e datas especiais ----------
+  // As estações mudam a cada 6 dias de jogo e decidem que climas podem aparecer.
+  // As datas especiais seguem o calendário de verdade do aparelho.
+  const SEASON_DAYS = 6;
+  const SEASONS = [
+    { id: 'primavera', name: 'Primavera', desc: 'Flores na rua e chuvas de vez em quando.', w: { sol: 5, chuva: 3, tempestade: 1 } },
+    { id: 'verao', name: 'Verão', desc: 'Dias de calor e tempestades fortes.', w: { sol: 3, calor: 4, tempestade: 2, chuva: 1 } },
+    { id: 'outono', name: 'Outono', desc: 'Folhas caindo e muita chuva.', w: { sol: 3, chuva: 4, tempestade: 1 } },
+    { id: 'inverno', name: 'Inverno', desc: 'Frio, cachecóis e neve na estrada.', w: { sol: 2, neve: 4, chuva: 2 } },
+  ];
+  const WEATHER = {
+    sol: { name: 'Sol', icon: '☀️', zs: 1, desc: '' },
+    chuva: { name: 'Chuva', icon: '🌧️', zs: 0.85, desc: 'Zumbis escorregam e andam mais devagar. Lazer coberto vende mais.' },
+    tempestade: { name: 'Tempestade', icon: '⛈️', zs: 0.8, desc: 'Raios iluminam a estrada e às vezes acertam zumbis.' },
+    calor: { name: 'Calor', icon: '🥵', zs: 0.85, desc: 'Zumbis cansados. Sorvete, suco e açaí vendem bem mais.' },
+    neve: { name: 'Neve', icon: '❄️', zs: 0.72, desc: 'Zumbis atolam na neve e deixam pegadas. Café vende mais.' },
+  };
+  const season = () => SEASONS[Math.floor((S.day - 1) / SEASON_DAYS) % 4];
+  const wxK = () => (S && S.wx ? S.wx.k : 'sol');
+  function rollWeather() {
+    const w = season().w, tot = Object.values(w).reduce((a, b) => a + b, 0);
+    let r = Math.random() * tot;
+    for (const [k, n] of Object.entries(w)) { r -= n; if (r <= 0) return k; }
+    return 'sol';
+  }
+  function setWeather(k, quiet) {
+    const was = wxK();
+    S.wx = { k, t: rnd(150, 330), acc: S.wx ? S.wx.acc || 0 : 0 };
+    if (!quiet && k !== was && WEATHER[k].desc) toast(`${WEATHER[k].icon} ${WEATHER[k].name}: ${WEATHER[k].desc}`, 'event');
+  }
+  HOOK.state.push(() => { if (!S.wx || !WEATHER[S.wx.k]) S.wx = { k: 'sol', t: 200, acc: 0 }; S.fest = S.fest || {}; });
+  HOOK.zspeed.push(() => WEATHER[wxK()].zs);
+  // vendas que mudam com o clima e a estação
+  const HOT_SELL = new Set(['sorvete', 'suco', 'acai']), RAIN_SELL = new Set(['cinema', 'livraria', 'fliperama', 'galeria']), COLD_SELL = new Set(['cafe', 'padaria']);
+  HOOK.biz.push(L => {
+    const k = wxK();
+    if (k === 'calor' && HOT_SELL.has(L.type)) return 1.6;
+    if ((k === 'chuva' || k === 'tempestade') && RAIN_SELL.has(L.type)) return 1.3;
+    if ((k === 'neve' || season().id === 'inverno') && COLD_SELL.has(L.type)) return 1.3;
+    return 1;
+  });
+  HOOK.dawn.push(() => {
+    const prev = SEASONS[Math.floor((S.day - 2) / SEASON_DAYS) % 4], now = season();
+    if (prev !== now) { setTimeout(() => setBanner(`${now.name} chegou!`, now.desc), 3200); logEvent(`começou a estação: ${now.name.toLowerCase()}`); }
+    setWeather(rollWeather());
+  });
+  sfx.thunder = () => { noise(1.8, 160, 'lowpass', 0.55); tone(70, 30, 1.4, 'sine', 0.25); noise(0.25, 2400, 'highpass', 0.15); };
+
+  // partículas de clima em coordenadas da tela
+  let drops = [], flakes = [], leaves = [], footprints = [], bolt = null, flash = 0, boltT = 8;
+  const wxDensity = () => ({ chuva: 90, tempestade: 170 }[wxK()] || 0);
+  HOOK.update.push(dt => {
+    const k = wxK();
+    S.wx.t -= dt;
+    if (S.wx.t <= 0) setWeather(Math.random() < 0.55 ? 'sol' === k ? rollWeather() : (Math.random() < 0.5 ? 'sol' : k) : k);
+    S.wx.acc = clamp(S.wx.acc + (k === 'neve' ? dt / 40 : k === 'chuva' || k === 'tempestade' ? dt / 30 : -dt / 90), 0, 1);
+    // chuva
+    const want = wxDensity();
+    while (drops.length < want) drops.push({ x: rnd(-40, viewW + 40), y: rnd(-viewH, viewH), v: rnd(420, 620) });
+    if (drops.length > want) drops.length = want;
+    for (const d of drops) { d.y += d.v * dt; d.x -= d.v * 0.18 * dt; if (d.y > viewH) { d.y = rnd(-60, -10); d.x = rnd(-20, viewW + 80); } }
+    // neve
+    const wantF = k === 'neve' ? 110 : 0;
+    while (flakes.length < wantF) flakes.push({ x: rnd(0, viewW), y: rnd(-viewH, viewH), v: rnd(25, 60), r: rnd(1.2, 3), ph: rnd(0, TAU) });
+    if (flakes.length > wantF) flakes.length = wantF;
+    for (const f of flakes) { f.y += f.v * dt; f.ph += dt; f.x += Math.sin(f.ph) * 12 * dt; if (f.y > viewH) { f.y = -5; f.x = rnd(0, viewW); } }
+    // folhas no outono e pétalas na primavera
+    const sid = season().id, wantL = (sid === 'outono' || sid === 'primavera') && k !== 'tempestade' ? 14 : 0;
+    while (leaves.length < wantL) leaves.push({ x: rnd(0, viewW), y: rnd(-viewH, 0), v: rnd(20, 45), ph: rnd(0, TAU), c: sid === 'outono' ? pick(['#e0843a', '#c8501e', '#e8b040', '#a8401a']) : pick(['#f8c8d8', '#ffffff', '#f4a6c4']) });
+    if (leaves.length > wantL) leaves.length = wantL;
+    for (const l of leaves) { l.y += l.v * dt; l.ph += dt * 2; l.x += Math.sin(l.ph) * 30 * dt - 10 * dt; if (l.y > viewH) { l.y = -10; l.x = rnd(0, viewW + 60); } }
+    // pegadas na neve
+    if (S.wx.acc > 0.25) for (const z of zombies) {
+      if (z.dead || z.state !== 'walk') continue;
+      z.fp = (z.fp || 0) - dt;
+      if (z.fp <= 0) { z.fp = 0.45; const q = gp(z.x, z.lane); footprints.push({ x: q.x + rnd(-3, 3), y: q.y + 1, life: 25, s: ZT[z.type].size }); }
+    }
+    for (const f of footprints) f.life -= dt;
+    footprints = footprints.filter(f => f.life > 0 && S.wx.acc > 0.1);
+    if (footprints.length > 220) footprints.splice(0, footprints.length - 220);
+    // raios
+    flash = Math.max(0, flash - dt * 2.2);
+    if (bolt) { bolt.life -= dt; if (bolt.life <= 0) bolt = null; }
+    if (k === 'tempestade') {
+      boltT -= dt;
+      if (boltT <= 0) { boltT = rnd(6, 15); strike(); }
+    }
+  });
+  function strike() {
+    flash = 1;
+    const seen = zombies.filter(z => !z.dead && z.type !== 'giant' && wxOf(z.x) > camX + 20 && wxOf(z.x) < camX + viewW - 20);
+    const hit = seen.length && Math.random() < 0.45 ? pick(seen) : null;
+    const wx = hit ? wxOf(hit.x) : camX + rnd(0.1, 0.9) * viewW, gy = hit ? gp(hit.x, hit.lane).y - 30 : GROUND - rnd(60, 140);
+    const pts = [[wx + rnd(-60, 60), -worldOY() - 20]];
+    for (let k = 1; k <= 7; k++) { const u = k / 7; pts.push([wx + (pts[0][0] - wx) * (1 - u) + rnd(-18, 18), pts[0][1] + (gy - pts[0][1]) * u]); }
+    pts[pts.length - 1] = [wx, gy];
+    bolt = { pts, life: 0.22 };
+    setTimeout(() => sfx.thunder(), hit ? 0 : rnd(150, 700));
+    if (hit) {
+      hurtZombie(hit, 999, true, true);
+      floatE(hit, 80, 'Raio!', '#fff8a0');
+      puffE(hit, 20, 10, '#fff4c0');
+    }
+  }
+  // poças, neve no chão e pegadas (atrás dos prédios e pessoas)
+  const puddles = Array.from({ length: 70 }, (_, k) => ({ x: k * 180 + rnd(0, 120), y: GROUND + rnd(16, 52), w: rnd(16, 34) }));
+  HOOK.worldBack.push(nf => {
+    const acc = S.wx.acc, k = wxK(), x0 = camX - 60, x1 = camX + viewW + 60, t = performance.now() / 1000;
+    if (acc > 0.05 && k !== 'neve') {
+      for (const p of puddles) {
+        if (p.x < x0 || p.x > x1) continue;
+        ctx.globalAlpha = acc * 0.75; ell(p.x, p.y, p.w * acc, p.w * 0.22 * acc); ctx.fillStyle = mix('#8a9cb4', '#2a2a4a', nf); ctx.fill();
+        if (k === 'chuva' || k === 'tempestade') { const ph = (t * 1.3 + p.x) % 1; ctx.globalAlpha = (1 - ph) * 0.6 * acc; ctx.strokeStyle = '#d8e4f0'; ctx.lineWidth = 1; ell(p.x + rnd(-1, 1), p.y, 2 + ph * 10, 0.6 + ph * 2.4); ctx.stroke(); }
+      }
+      ctx.globalAlpha = 1;
+    }
+    if (k === 'neve' || (acc > 0.05 && footprints.length)) {
+      const a = k === 'neve' ? acc : acc * 0.5;
+      ctx.globalAlpha = a;
+      ctx.fillStyle = mix('#f4f8ff', '#9aa0c0', nf);
+      ctx.beginPath(); ctx.moveTo(x0, GROUND + 10);
+      for (let x = x0; x <= x1; x += 18) ctx.lineTo(x, GROUND - 4 - 3 * Math.sin(x * 0.05) - 2 * Math.sin(x * 0.13));
+      ctx.lineTo(x1, GROUND + 10); ctx.closePath(); ctx.fill();
+      ctx.globalAlpha = a * 0.55; ctx.fillRect(x0, GROUND + 10, x1 - x0, H0 - GROUND + 40);
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = mix('#6a7490', '#2a2a48', nf);
+      for (const f of footprints) { ctx.globalAlpha = clamp(f.life / 10, 0, 0.85) * a; ell(f.x, f.y, 4.5 * f.s, 1.8 * f.s); ctx.fill(); }
+      ctx.globalAlpha = 1;
+    }
+  });
+  // chuva, neve, raios e calor (por cima de tudo, na tela)
+  HOOK.screen.push(nf => {
+    const k = wxK();
+    if (k === 'chuva' || k === 'tempestade') { ctx.fillStyle = `rgba(40,50,70,${k === 'tempestade' ? 0.26 : 0.14})`; ctx.fillRect(0, 0, viewW, viewH); }
+    if (k === 'calor') {
+      ctx.fillStyle = 'rgba(255,170,60,0.09)'; ctx.fillRect(0, 0, viewW, viewH);
+      const t = performance.now() / 1000, gy = GROUND + worldOY();
+      ctx.strokeStyle = 'rgba(255,240,220,0.18)'; ctx.lineWidth = 2;
+      for (let r = 0; r < 4; r++) { ctx.beginPath(); for (let x = 0; x <= viewW; x += 12) ctx.lineTo(x, gy - 30 - r * 16 + Math.sin(x * 0.05 + t * 4 + r) * 2.5); ctx.stroke(); }
+    }
+    if (drops.length) {
+      ctx.strokeStyle = 'rgba(200,215,235,0.55)'; ctx.lineWidth = 1.2; ctx.beginPath();
+      for (const d of drops) { ctx.moveTo(d.x, d.y); ctx.lineTo(d.x - 3, d.y + 14); }
+      ctx.stroke();
+    }
+    if (flakes.length) { ctx.fillStyle = 'rgba(255,255,255,0.9)'; for (const f of flakes) { circle(f.x, f.y, f.r); ctx.fill(); } }
+    for (const l of leaves) { ctx.save(); ctx.translate(l.x, l.y); ctx.rotate(l.ph); ctx.fillStyle = l.c; ell(0, 0, 4, 2); ctx.fill(); ctx.restore(); }
+    if (bolt) {
+      ctx.save(); ctx.translate(-camX, worldOY());
+      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3.5; ctx.shadowColor = '#bfe0ff'; ctx.shadowBlur = 14;
+      ctx.beginPath(); bolt.pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+      ctx.restore();
+    }
+    if (flash > 0) { ctx.fillStyle = `rgba(235,240,255,${flash * 0.55})`; ctx.fillRect(0, 0, viewW, viewH); }
+  });
+  // cachecol no inverno e gorro de Papai Noel no Natal
+  function personExtra(p, O) {
+    if (!S) return;
+    if (season().id === 'inverno' || wxK() === 'neve') {
+      rr(-8.5, -22, 18, 5, 2.5); O('#e04f4f', 1.2);
+      rr(4, -19, 4.5, 9, 2); O('#c0392b', 1.1);
+      ctx.fillStyle = '#ffffff'; ctx.fillRect(-4, -21, 2, 3); ctx.fillRect(2, -21, 2, 3);
+    }
+  }
+  function personHat(p, O, hx, hy) {
+    const f = festival();
+    if (!f || f.id !== 'natal' || !S) return;
+    ctx.beginPath(); ctx.moveTo(hx - 13, hy - 9); ctx.quadraticCurveTo(hx - 2, hy - 34, hx + 16, hy - 26); ctx.lineTo(hx + 13, hy - 9); ctx.closePath(); O('#e0302a', 1.4);
+    rr(hx - 15, hy - 12, 31, 6, 3); O('#ffffff', 1.3); circle(hx + 17, hy - 26, 3.5); O('#ffffff', 1.2);
+  }
+
+  // datas especiais do calendário
+  const FEST = {
+    junina: { id: 'junina', name: 'Festa Junina', banner: 'Arraiá na Barricada!', hat: 'palha', bonus: 'pamonha', gift: { coins: 300, goods: 30, tokens: 3 } },
+    halloween: { id: 'halloween', name: 'Halloween', banner: 'Halloween na Barricada!', hat: 'bruxa', bonus: 'doce', gift: { coins: 300, goods: 20, tokens: 4 } },
+    natal: { id: 'natal', name: 'Natal', banner: 'Feliz Natal, Barricada!', hat: 'noel', bonus: 'presente', gift: { coins: 400, goods: 30, tokens: 5 } },
+  };
+  function festival() {
+    const d = new Date(), m = d.getMonth() + 1, day = d.getDate();
+    if (m === 6 || (m === 7 && day <= 10)) return FEST.junina;
+    if ((m === 10 && day >= 20) || (m === 11 && day <= 3)) return FEST.halloween;
+    if ((m === 12 && day >= 8) || (m === 1 && day <= 6)) return FEST.natal;
+    return null;
+  }
+  const festKey = f => f.id + new Date().getFullYear() + (f.id === 'natal' && new Date().getMonth() === 0 ? -1 : 0);
+  function festGift() {
+    const f = festival();
+    if (!f || S.fest[festKey(f)]) return;
+    S.fest[festKey(f)] = 1;
+    const g = f.gift;
+    S.coins += g.coins; S.goods = Math.min(GOODS_MAX, S.goods + g.goods); S.tokens += g.tokens;
+    setTimeout(() => { setBanner(f.banner, `Presente: ${g.coins} moedas, ${g.goods} caixas e ${g.tokens} fichas`); sfx.dawn(); }, 1600);
+    logEvent(`a cidade comemorou ${f.name}`);
+    persist();
+  }
+  HOOK.begin.push(() => { festGift(); if (!S.wx.started) { S.wx.started = 1; setWeather(rollWeather(), true); } });
+  HOOK.dawn.push(festGift);
+  HOOK.spawn.push(z => { const f = festival(); if (f && !['golden', 'giant', 'bloater'].includes(z.type) && Math.random() < 0.14) z.hat = f.hat; });
+  HOOK.kill.push(z => {
+    if (!z.hat) return;
+    const f = Object.values(FEST).find(x => x.hat === z.hat), c = 6 + S.day * 2;
+    S.coins += c;
+    floatE(z, 96 * ZT[z.type].size, `+${c} ${f ? f.bonus : ''}!`, '#ffb0e0');
+    if (Math.random() < 0.05) { S.tokens++; floatE(z, 116 * ZT[z.type].size, '+1 ficha', '#9ff0f0'); }
+  });
+  // chapéus dos zumbis fantasiados (desenhados dentro de drawZombie, já na escala do zumbi)
+  function zHat(kind, hx, hy, O) {
+    if (kind === 'bruxa') {
+      ell(hx, hy - 17, 23, 5); O('#3a2a4a', 1.6);
+      ctx.beginPath(); ctx.moveTo(hx - 12, hy - 19); ctx.quadraticCurveTo(hx - 2, hy - 40, hx + 12, hy - 52); ctx.quadraticCurveTo(hx + 6, hy - 36, hx + 12, hy - 19); ctx.closePath(); O('#4a3a6a', 1.6);
+      rr(hx - 11, hy - 25, 23, 5, 1); O('#f0842a', 1.2);
+    } else if (kind === 'noel') {
+      ctx.beginPath(); ctx.moveTo(hx - 17, hy - 13); ctx.quadraticCurveTo(hx - 4, hy - 46, hx + 20, hy - 36); ctx.lineTo(hx + 17, hy - 13); ctx.closePath(); O('#e0302a', 1.6);
+      rr(hx - 20, hy - 17, 40, 8, 4); O('#ffffff', 1.4); circle(hx + 21, hy - 36, 5); O('#ffffff', 1.3);
+    } else if (kind === 'palha') {
+      ell(hx, hy - 15, 28, 6); O('#e8c060', 1.6);
+      ctx.beginPath(); ctx.moveTo(hx - 13, hy - 16); ctx.quadraticCurveTo(hx, hy - 36, hx + 13, hy - 16); ctx.closePath(); O('#f0d070', 1.6);
+      rr(hx - 13, hy - 21, 26, 4, 1); O('#e04f4f', 1.1);
+      ctx.strokeStyle = '#b08a30'; ctx.lineWidth = 0.8; for (let q = -20; q <= 20; q += 6) { ctx.beginPath(); ctx.moveTo(hx + q, hy - 13); ctx.lineTo(hx + q * 1.1, hy - 17); ctx.stroke(); }
+    }
+  }
+  // enfeites da festa na rua
+  const fireLit = (x, y, t, k = 1) => {
+    const fl = Math.sin(t * 12 + x) * 2;
+    ctx.beginPath(); ctx.moveTo(x - 9 * k, y); ctx.quadraticCurveTo(x - 8 * k, y - 18 * k, x + fl, y - 30 * k); ctx.quadraticCurveTo(x + 8 * k, y - 16 * k, x + 9 * k, y); ctx.closePath(); ctx.fillStyle = '#ff8a2a'; ctx.fill();
+    ctx.beginPath(); ctx.moveTo(x - 4 * k, y); ctx.quadraticCurveTo(x - 3 * k, y - 12 * k, x - fl * 0.5, y - 19 * k); ctx.quadraticCurveTo(x + 4 * k, y - 10 * k, x + 4 * k, y); ctx.closePath(); ctx.fillStyle = '#ffe680'; ctx.fill();
+  };
+  function festString(f, nf, t) {
+    const lastX = lotX(Math.max(0, S.lotsOpen - 1)) + LOT_W + 20, x0 = Math.max(GX + 20, camX - 160), x1 = Math.min(lastX, camX + viewW + 160);
+    if (x1 <= x0) return;
+    const anchors = [];
+    for (let i = -1; i < S.lotsOpen; i++) { const ax = lotX(i) + LOT_W + 10; if (ax >= x0 - 160 && ax <= x1 + 160) anchors.push(ax); }
+    const top = GROUND - 158;
+    for (const ax of anchors) { rr(ax - 2, top - 4, 4, GROUND - top + 2, 1); ctx.fillStyle = mix('#8a6a4a', '#3a2a30', nf * 0.5); ctx.fill(); }
+    for (let a = 0; a < anchors.length - 1; a++) {
+      const xa = anchors[a], xb = anchors[a + 1], sag = 18;
+      const yAt = u => top + sag * 4 * u * (1 - u);
+      ctx.strokeStyle = '#3a3a44'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(xa, top); ctx.quadraticCurveTo((xa + xb) / 2, top + sag * 2, xb, top); ctx.stroke();
+      const n = 11;
+      for (let q = 1; q < n; q++) {
+        const u = q / n, x = xa + (xb - xa) * u, y = yAt(u);
+        if (f.id === 'junina') {
+          ctx.beginPath(); ctx.moveTo(x - 5, y); ctx.lineTo(x + 5, y); ctx.lineTo(x, y + 11); ctx.closePath();
+          ctx.fillStyle = mix(['#e04f4f', '#f6d05b', '#3f8ae0', '#5bbf7a', '#c86bd6', '#f08a3c'][(q + a) % 6], '#2a2040', nf * 0.4); ctx.fill();
+        } else {
+          const cols = f.id === 'natal' ? ['#e04f4f', '#5bbf7a', '#f6d05b', '#3f8ae0'] : ['#f0842a', '#a050e0', '#f0842a', '#7cdf5a'];
+          const on = (q + a + Math.floor(t * 2.5)) % 2 === 0;
+          ctx.fillStyle = on ? cols[(q + a) % cols.length] : tint(cols[(q + a) % cols.length], -0.45);
+          ell(x, y + 4, 2.4, 3.4); ctx.fill();
+          if (on && nf > 0.2) { ctx.globalAlpha = 0.35 * nf; circle(x, y + 4, 7); ctx.fill(); ctx.globalAlpha = 1; }
+        }
+      }
+    }
+  }
+  HOOK.worldBack.push(nf => {
+    const f = festival(); if (!f) return;
+    const t = performance.now() / 1000, gx = GX + 64;
+    if (gx < camX - 80 || gx > camX + viewW + 80) return;
+    if (f.id === 'natal') {
+      // pinheirinho de Natal na entrada da cidade
+      rr(gx - 4, GROUND - 16, 8, 14, 1); ink('#7a4a2a', 1.4);
+      for (const [w, y] of [[34, -16], [28, -38], [20, -58]]) { ctx.beginPath(); ctx.moveTo(gx - w, GROUND + y); ctx.lineTo(gx, GROUND + y - 30); ctx.lineTo(gx + w, GROUND + y); ctx.closePath(); ink(mix('#2f8a4a', '#1a3a2a', nf * 0.4), 1.6); }
+      ctx.save(); ctx.translate(gx, GROUND - 90); ctx.beginPath(); for (let q = 0; q < 10; q++) { const a = -Math.PI / 2 + q * Math.PI / 5, r = q % 2 ? 4 : 9; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); ink('#ffd23f', 1.2); ctx.restore();
+      for (let q = 0; q < 9; q++) { ctx.fillStyle = ['#e04f4f', '#3f8ae0', '#f6d05b'][q % 3]; circle(gx + Math.sin(q * 2.3) * (8 + q * 2.4), GROUND - 74 + q * 6.5, 2.6); ctx.fill(); }
+      rr(gx + 14, GROUND - 14, 14, 12, 2); ink('#e04f4f', 1.2); rr(gx - 30, GROUND - 12, 12, 10, 2); ink('#3f8ae0', 1.2);
+    } else if (f.id === 'junina') {
+      // fogueira de São João
+      ctx.strokeStyle = '#6b4a34'; ctx.lineWidth = 4;
+      for (let q = 0; q < 5; q++) { ctx.beginPath(); ctx.moveTo(gx - 14 + q * 7, GROUND); ctx.lineTo(gx - 4 + q * 2, GROUND - 26); ctx.stroke(); }
+      fireLit(gx, GROUND - 4, t, 1.6);
+      if (nf > 0) { const g = ctx.createRadialGradient(gx, GROUND - 20, 4, gx, GROUND - 20, 80); g.addColorStop(0, `rgba(255,160,60,${0.45 * nf})`); g.addColorStop(1, 'rgba(255,160,60,0)'); ctx.fillStyle = g; ctx.fillRect(gx - 80, GROUND - 100, 160, 110); }
+    } else {
+      // espantalho de abóbora na entrada
+      ctx.strokeStyle = '#6b4a34'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(gx, GROUND); ctx.lineTo(gx, GROUND - 58); ctx.moveTo(gx - 20, GROUND - 42); ctx.lineTo(gx + 20, GROUND - 42); ctx.stroke();
+      rr(gx - 11, GROUND - 48, 22, 26, 3); ink('#7a4a8a', 1.4);
+      pumpkin(gx, GROUND - 52, 1.1, t, nf);
+    }
+  });
+  function pumpkin(x, y, k, t, nf) {
+    ctx.save(); ctx.translate(x, y); ctx.scale(k, k);
+    for (const dx of [-6, 6, 0]) { ell(dx, 0, 9, 9); ink('#f0842a', 1.4); }
+    rr(-1.5, -12, 3, 5, 1); ink('#5a8a3a', 1);
+    const glow = nf > 0.1 || Math.sin(t * 6) > 0.6;
+    ctx.fillStyle = glow ? '#ffe680' : '#5a2a10';
+    ctx.beginPath(); ctx.moveTo(-6, -3); ctx.lineTo(-3, -3); ctx.lineTo(-4.5, -6); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(6, -3); ctx.lineTo(3, -3); ctx.lineTo(4.5, -6); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-6, 2); ctx.lineTo(6, 2); ctx.lineTo(3, 5); ctx.lineTo(0, 3); ctx.lineTo(-3, 5); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  HOOK.worldFront.push(nf => {
+    const f = festival(); if (!f) return;
+    const t = performance.now() / 1000;
+    festString(f, nf, t);
+    if (f.id === 'halloween') for (let i = 0; i < S.lotsOpen; i++) {
+      const x = lotX(i) + LOT_W + 10;
+      if (x < camX - 30 || x > camX + viewW + 30 || i % 2) continue;
+      pumpkin(x, GROUND + 4, 0.8, t + i, nf);
+    }
+  });
+  const bats = Array.from({ length: 6 }, (_, k) => ({ x: rnd(0, 1), y: rnd(0.08, 0.35), s: rnd(0.7, 1.2), ph: k }));
+  HOOK.screen.push(nf => {
+    const f = festival();
+    if (!f || f.id !== 'halloween' || nf < 0.2) return;
+    const t = performance.now() / 1000;
+    ctx.fillStyle = `rgba(30,20,40,${0.85 * nf})`;
+    for (const b of bats) {
+      const x = ((b.x * viewW + t * 40 * b.s) % (viewW + 80)) - 40, y = b.y * viewH + Math.sin(t * 2 + b.ph) * 12, w = Math.sin(t * 14 + b.ph) * 6 * b.s;
+      ctx.beginPath(); ctx.moveTo(x, y); ctx.quadraticCurveTo(x - 7 * b.s, y - 4 - w, x - 14 * b.s, y + w * 0.4); ctx.quadraticCurveTo(x - 7 * b.s, y + 1, x, y + 3);
+      ctx.quadraticCurveTo(x + 7 * b.s, y + 1, x + 14 * b.s, y + w * 0.4); ctx.quadraticCurveTo(x + 7 * b.s, y - 4 - w, x, y); ctx.fill();
+    }
+  });
+  HOOK.hud.push(ev => {
+    const w = WEATHER[wxK()];
+    ev.unshift(`<button class="chip ev" data-ev="weather" type="button">${w.icon} ${w.name} · ${season().name}</button>`);
+    const f = festival();
+    if (f) ev.push(`<span class="chip ev" style="background:#ffd0f0">${f.name}</span>`);
+  });
+  XS.weather = () => {
+    const w = WEATHER[wxK()], s = season(), f = festival(), next = SEASON_DAYS - ((S.day - 1) % SEASON_DAYS);
+    return `<h2>${w.icon} ${w.name} · ${s.name}</h2>
+      <p>${w.desc || 'Dia tranquilo, céu limpo.'}</p>
+      <p class="note">${s.name}: ${s.desc} Faltam ${next} dia${next > 1 ? 's' : ''} para a próxima estação.</p>
+      <h3>Como o clima afeta a cidade</h3>
+      <div class="grid">${Object.entries(WEATHER).filter(([k]) => k !== 'sol').map(([k, x]) => `<div class="opt${k === wxK() ? ' on' : ''}"><b>${x.icon} ${x.name}</b><p>${x.desc}</p></div>`).join('')}</div>
+      <h3>Datas especiais</h3>
+      <p class="note">Festa Junina (junho), Halloween (fim de outubro) e Natal (dezembro) enfeitam a rua, trazem zumbis fantasiados que dão prêmios extras e um presente para a cidade.${f ? ` Agora: <b>${f.name}</b>!` : ''}</p>`;
+  };
 
   // ---------- Menu "Mais" ----------
   // Cada sistema novo se registra aqui com um cartão (rótulo, descrição e o que abrir).

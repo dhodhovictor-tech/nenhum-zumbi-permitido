@@ -356,6 +356,7 @@ body[data-mode="run"] .alerts { display: none; }
   .card h2 { font-size: 22px; }
 }
 @media (prefers-reduced-motion: reduce) { .hbtn.warn, .toast { animation: none; } }
+.bkIn { width: 100%; box-sizing: border-box; font: 13px/1.3 monospace; border: 3px solid #8a3a18; border-radius: 10px; padding: 8px; background: #fff8e8; color: #3a1408; resize: vertical; -webkit-user-select: text; user-select: text; }
 
 /* ---------- botões numa faixa própria embaixo da rua, para não cobrir os zumbis ---------- */
 .game { display: flex; flex-direction: column; }
@@ -419,6 +420,7 @@ body[data-mode="run"] .alerts { display: none; }
         <button class="hbtn" id="bWeapons" type="button">Armas</button>
         <button class="hbtn" id="bDefense" type="button">Defesa</button>
         <button class="hbtn" id="bPeople" type="button">Moradores</button>
+        <button class="hbtn" id="bMore" type="button">Mais ☰</button>
       </div>
       <div class="grp run-only">
         <button class="hbtn warn" id="bFlee" type="button">Fugir</button>
@@ -566,6 +568,13 @@ body[data-mode="run"] .alerts { display: none; }
     { k: 'golden', ns: [1, 1, 1], txt: () => 'Derrote um zumbi dourado' },
   ];
 
+  // ---------- Extensões ----------
+  // Menus (XS), ações de botão (XA) e ganchos usados pelos sistemas novos (clima, eventos, minijogos...).
+  const XS = {}, XA = {};
+  const HOOK = { state: [], update: [], dawn: [], night: [], kill: [], begin: [], worldBack: [], worldFront: [], screen: [], zspeed: [], biz: [], hud: [] };
+  const runHooks = (name, ...a) => { for (const f of HOOK[name]) f(...a); };
+  const mulHooks = (name, ...a) => HOOK[name].reduce((m, f) => m * f(...a), 1);
+
   // ---------- Estado salvo ----------
   const KEY = 'cidade-barricada-v2';
   let S = null;
@@ -591,6 +600,7 @@ body[data-mode="run"] .alerts { display: none; }
     const a = makePerson('Comida'); a.work = 1;
     S.people.push(a, makePerson('Varejo'));
     while (S.missions.length < 3) S.missions.push(newMission());
+    runHooks('state');
   }
   function loadGame() {
     try {
@@ -600,14 +610,16 @@ body[data-mode="run"] .alerts { display: none; }
         if (S.lots.length < NLOTS) S.lots = S.lots.concat(Array(NLOTS - S.lots.length).fill(null));
         S.up = Object.assign({ dmg: 0, clip: 0, gate: 0, turret: 0, wire: 0 }, S.up);
         while (S.missions.length < 3) S.missions.push(newMission());
+        runHooks('state');
         return true;
       }
     } catch (e) {}
     return false;
   }
   let started = false;
+  let restoring = false;
   function persist() {
-    if (!S || !started) return;
+    if (!S || !started || restoring) return;
     S.savedAt = Date.now();
     try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {}
   }
@@ -635,7 +647,7 @@ body[data-mode="run"] .alerts { display: none; }
   const workFactor = ws => (ws.length ? 0.6 + 0.4 * ws.length : 0);
   // cada funcionário de banco: +2,5% nas vendas (+5% se for o emprego dos sonhos)
   const bankBonus = () => S.lots.reduce((a, L, i) => a + (L && L.type === 'banco' && i < S.lotsOpen && !(L.build > 0) ? workersOf(i).reduce((b, p) => b + (p.cat === BLD.banco.cat ? 0.05 : 0.025), 0) : 0), 0);
-  const prodCoins = (L, ws, t) => Math.round(BLD[L.type].pay * 0.6 * TIER[t].mult * lvlMul(L) * (1 + 0.25 * ws.filter(p => p.cat === BLD[L.type].cat).length) * ws.reduce((a, p) => a + 0.06 * ((p.lvl || 1) - 1), 1) * (1 + bankBonus()));
+  const prodCoins = (L, ws, t) => Math.round(BLD[L.type].pay * 0.6 * TIER[t].mult * lvlMul(L) * (1 + 0.25 * ws.filter(p => p.cat === BLD[L.type].cat).length) * ws.reduce((a, p) => a + 0.06 * ((p.lvl || 1) - 1), 1) * (1 + bankBonus()) * mulHooks('biz', L));
   const xpNeed = l => Math.round(60 * Math.pow(l, 1.35));
   function dmgMul() {
     let q = 0;
@@ -930,6 +942,7 @@ body[data-mode="run"] .alerts { display: none; }
     splatE(z, 34 * t.size, t.skin, z.type === 'giant' ? 40 : z.type === 'brute' ? 22 : 12);
     sfx.squish();
     if (z.type === 'bloater' && !opts.noChain) explodeE(z, 6, true);
+    runHooks('kill', z);
   }
   function explodeE(src, dmg, chain) {
     puffE(src, 30, 18, '#c8e06a');
@@ -1690,6 +1703,7 @@ body[data-mode="run"] .alerts { display: none; }
       track('night');
       S.bloodMoon = false;
       spawnSurvivor();
+      runHooks('dawn');
       persist();
     }
     const night = isNight();
@@ -1699,6 +1713,7 @@ body[data-mode="run"] .alerts { display: none; }
       else setBanner('A noite chegou', 'Uma horda está vindo. Segure o portão!');
       if (S.day % 5 === 0) bossDue = 10;
       sfx.night();
+      runHooks('night');
     }
     wasNight = night;
     if (bossDue > 0) { bossDue -= dt; if (bossDue <= 0) { bossDue = -1; spawnGiant(); } }
@@ -1757,7 +1772,7 @@ body[data-mode="run"] .alerts { display: none; }
       const stopX = z.type === 'spitter' ? GATE_X + 270 + (z.stopOff || 0) : GATE_X + DEF_W + (z.stopOff || 0) + t.size * 8;
       if (z.x > stopX) {
         const inWire = z.x < GATE_X + 240;
-        z.x -= z.spd * (inWire ? slow : 1) * slowMul * dt;
+        z.x -= z.spd * (inWire ? slow : 1) * slowMul * mulHooks('zspeed', z) * dt;
         z.state = 'walk';
       } else {
         z.state = 'attack';
@@ -1881,6 +1896,8 @@ body[data-mode="run"] .alerts { display: none; }
     }
     for (const v of visitors) { const dx = v.tx - v.x; v.x += Math.sign(dx) * 26 * dt; v.t += dt; if (Math.abs(dx) < 3) v.gone = true; }
     visitors = visitors.filter(v => !v.gone);
+
+    runHooks('update', dt);
 
     // câmera
     if (camTX !== null) { camX += (camTX - camX) * Math.min(1, dt * 7); if (Math.abs(camTX - camX) < 1) { camX = camTX; camTX = null; } }
@@ -4111,6 +4128,7 @@ body[data-mode="run"] .alerts { display: none; }
       drawHedge(nf);
       drawGround(nf);
       if (S) drawOutside(nf);
+      if (S) runHooks('worldBack', nf);
       const rooms = [];
       let tierDrawn = 0;
       if (S) {
@@ -4123,6 +4141,7 @@ body[data-mode="run"] .alerts { display: none; }
         drawTownExtras();
         for (const v of visitors) drawPerson(v.x, GROUND + 10, 0.8, v.p, v.t, Math.sign(v.tx - v.x) || 1, false, { box: v.box });
         tierDrawn = drawGateArea(nf);
+        runHooks('worldFront', nf);
       }
       for (const p of parts) { if (p.view) continue; ctx.globalAlpha = clamp(p.life / p.max * 1.5, 0, 1); ctx.fillStyle = p.c; circle(p.x, p.y, p.r); ctx.fill(); }
       ctx.globalAlpha = 1;
@@ -4143,6 +4162,7 @@ body[data-mode="run"] .alerts { display: none; }
         }
         ctx.globalCompositeOperation = 'source-over';
       }
+      if (S) { base(); runHooks('screen', nf); world(); }
       for (const f of floats) { if (f.view && mode === 'run') continue; ctx.globalAlpha = clamp(f.life * 2, 0, 1); text(f.text, f.x, f.y, 16, f.c, 'center', INK); }
       ctx.globalAlpha = 1;
       base(); if (S && started && camX < GX - 160) drawGateHUD();
@@ -4194,6 +4214,7 @@ body[data-mode="run"] .alerts { display: none; }
     if (S.fair > 0) ev.push(`<span class="chip ev">Feira · ${Math.ceil(S.fair)}s</span>`);
     if (S.fog > 0) ev.push(`<span class="chip ev">Neblina · ${Math.ceil(S.fog)}s</span>`);
     if (blood()) ev.push(`<span class="chip ev" style="background:#e04f4f;color:#fff4e0">Lua de sangue</span>`);
+    runHooks('hud', ev);
     const html = ev.join('');
     if (html !== lastEv) { $('hEvents').innerHTML = html; lastEv = html; }
   }
@@ -4347,6 +4368,7 @@ body[data-mode="run"] .alerts { display: none; }
   $('bRuns').addEventListener('click', () => { initAudio(); openSheet('runs'); });
   $('bTokens').addEventListener('click', () => { initAudio(); if (started && mode === 'town') openSheet('tokens'); });
   $('bFlee').addEventListener('click', () => { if (run && !run.over) endRun(false, true); });
+  $('bMore').addEventListener('click', () => { initAudio(); if (started && mode === 'town') openSheet('more'); });
   $('bMute').addEventListener('click', () => { initAudio(); muted = !muted; $('bMute').textContent = muted ? 'Mudo' : 'Som'; });
 
   // ---------- Menus ----------
@@ -4361,11 +4383,11 @@ body[data-mode="run"] .alerts { display: none; }
   function closeSheet() { sheetOpen = false; sheet.hidden = true; sheet.innerHTML = ''; persist(); }
   function renderSheet(first) {
     const top = sheet.scrollTop;
-    const html = {
+    const html = ({
       intro: introHTML, lot: () => lotHTML(sheetArg), weapons: weaponsHTML, defense: defenseHTML, people: peopleHTML,
       missions: missionsHTML, runs: runsHTML, prep: () => prepHTML(sheetArg), runResult: () => runResultHTML(sheetArg),
       trade: tradeHTML, request: requestHTML, tokens: tokensHTML, newcomer: newcomerHTML,
-    }[sheetKind]();
+    }[sheetKind] || (() => XS[sheetKind](sheetArg)))();
     const close = sheetKind === 'intro' || sheetKind === 'runResult' ? '' : '<button class="close" data-act="close" aria-label="Fechar">×</button>';
     sheet.innerHTML = `<div class="card${sheetKind === 'people' ? ' paper' : ''}${html.includes('class="banner"') ? ' has-banner' : ''}">${close}${html}</div>`;
     sheet.hidden = false;
@@ -4392,6 +4414,7 @@ body[data-mode="run"] .alerts { display: none; }
       <div class="row">
         ${saved ? `<button class="btn" data-act="continue" data-primary>Continuar</button>` : `<button class="btn" data-act="new" data-primary>Começar</button>`}
         ${saved ? `<button class="btn ${confirmNew ? 'red' : 'alt'}" data-act="new">${confirmNew ? 'Apagar tudo e recomeçar?' : 'Novo jogo'}</button>` : ''}
+        <button class="btn alt" data-act="openBackup">Backup</button>
       </div>`;
   }
   function upgradeOpt(key) {
@@ -4972,6 +4995,8 @@ body[data-mode="run"] .alerts { display: none; }
         sfx.coin();
         break;
       }
+      default:
+        if (XA[act] && XA[act](b) === false) return;
     }
     persist();
     updateHUD();
@@ -5001,8 +5026,107 @@ body[data-mode="run"] .alerts { display: none; }
     ammo = clipSize();
     camX = gateView(); camTX = null;
     closeSheet();
+    runHooks('begin', isNew);
     updateHUD();
   }
+
+  // ---------- Menu "Mais" ----------
+  // Cada sistema novo se registra aqui com um cartão (rótulo, descrição e o que abrir).
+  const MORE = [];
+  XS.more = () => `<h2>Mais</h2>
+    <div class="grid">${MORE.filter(m => !m.show || m.show()).map(m => `<div class="opt"><b>${m.label}</b><p>${m.desc()}</p>
+      <button class="btn${m.cls ? ' ' + m.cls : ''}" data-act="more" data-id="${m.id}">${m.btn || 'Abrir'}</button></div>`).join('')}</div>`;
+  XA.more = b => { const m = MORE.find(x => x.id === b.dataset.id); if (m) m.open(); return false; };
+
+  // ---------- Backup do save ----------
+  // O código é o save inteiro (JSON comprimido em gzip quando o navegador permite) em base64.
+  const b64 = u8 => { let s = ''; for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000)); return btoa(s); };
+  const unb64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  async function packSave() {
+    const json = JSON.stringify(S);
+    if (window.CompressionStream) {
+      const buf = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+      return 'CB1:' + b64(new Uint8Array(buf));
+    }
+    return 'CB0:' + b64(new TextEncoder().encode(json));
+  }
+  async function unpackSave(code) {
+    const m = /^CB([01]):([A-Za-z0-9+/=]+)$/.exec(String(code).replace(/\s+/g, ''));
+    if (!m) throw new Error('Esse texto não é um código de backup da Cidade Barricada.');
+    const bytes = unb64(m[2]);
+    const json = m[1] === '1'
+      ? await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).text()
+      : new TextDecoder().decode(bytes);
+    const d = JSON.parse(json);
+    if (!d || d.v !== 2 || !Array.isArray(d.lots) || !Array.isArray(d.people)) throw new Error('O código está incompleto ou danificado.');
+    return d;
+  }
+  const bk = { msg: '', bad: false, pending: null };
+  XS.backup = () => {
+    const p = bk.pending;
+    return `<h2>Backup da cidade</h2>
+      <p>Seu progresso fica salvo só neste aparelho. Guarde um código de backup para não perder a cidade se trocar de celular, desinstalar o app ou limpar os dados do navegador.</p>
+      <h3>Guardar</h3>
+      <div class="row"><button class="btn" data-act="bkCopy" data-primary>Copiar código</button><button class="btn alt" data-act="bkFile">Salvar arquivo</button></div>
+      <p class="note">Cole o código numa conversa com você mesmo, num e-mail ou nas notas do celular.</p>
+      <h3>Restaurar</h3>
+      ${p ? `<div class="opt on"><b>Backup encontrado</b><p>Dia ${p.day} · nível ${p.level} · ${p.people.length} moradores · ${fmt(p.coins)} moedas</p>
+          <p class="note">Restaurar substitui a cidade atual deste aparelho.</p>
+          <div class="row"><button class="btn red" data-act="bkConfirm">Substituir pela cidade do backup</button><button class="btn alt" data-act="bkCancel">Cancelar</button></div></div>`
+        : `<textarea id="bkIn" class="bkIn" rows="3" placeholder="Cole aqui o código de backup (começa com CB1: ou CB0:)"></textarea>
+          <div class="row"><button class="btn green" data-act="bkCheck">Restaurar código</button><button class="btn alt" data-act="bkOpen">Abrir arquivo</button></div>`}
+      ${bk.msg ? `<p class="${bk.bad ? 'toast bad' : 'toast good'}" style="animation:none">${bk.msg}</p>` : ''}
+      ${started ? '' : '<div class="row"><button class="btn alt" data-act="bkBack">◀ Voltar</button></div>'}`;
+  };
+  const bkSay = (msg, bad) => { bk.msg = msg; bk.bad = !!bad; if (sheetKind === 'backup') renderSheet(); };
+  function openBackup() { bk.msg = ''; bk.pending = null; openSheet('backup'); }
+  XA.openBackup = () => { openBackup(); return false; };
+  XA.bkBack = () => { openSheet('intro'); return false; };
+  XA.bkCopy = () => {
+    persist();
+    packSave().then(code => {
+      const ok = () => bkSay(`Código copiado! (${code.length.toLocaleString('pt-BR')} letras) Guarde num lugar seguro.`);
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(code).then(ok, () => fallbackCopy(code));
+      else fallbackCopy(code);
+    }).catch(() => bkSay('Não consegui gerar o código. Tente "Salvar arquivo".', true));
+    return false;
+  };
+  function fallbackCopy(code) {
+    const ta = document.createElement('textarea'); ta.value = code; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    let ok = false; try { ok = document.execCommand('copy'); } catch (e) {}
+    ta.remove();
+    bkSay(ok ? 'Código copiado! Guarde num lugar seguro.' : 'O celular não deixou copiar. Use "Salvar arquivo".', !ok);
+  }
+  XA.bkFile = () => {
+    persist();
+    packSave().then(code => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(new Blob([code], { type: 'text/plain' }));
+      a.download = `cidade-barricada-dia-${S.day}.txt`;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+      bkSay('Arquivo salvo na pasta de downloads.');
+    }).catch(() => bkSay('Não consegui salvar o arquivo.', true));
+    return false;
+  };
+  const bkTry = code => unpackSave(code).then(d => { bk.pending = d; bkSay(''); }, e => bkSay(e.message || 'Código inválido.', true));
+  XA.bkCheck = () => { const el = $('bkIn'); bkTry(el ? el.value : ''); return false; };
+  XA.bkOpen = () => {
+    const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.txt,text/plain';
+    inp.onchange = () => { const f = inp.files && inp.files[0]; if (f) f.text().then(bkTry); };
+    inp.click();
+    return false;
+  };
+  XA.bkCancel = () => { bk.pending = null; bk.msg = ''; renderSheet(); return false; };
+  XA.bkConfirm = () => {
+    if (!bk.pending) return false;
+    restoring = true;
+    try { localStorage.setItem(KEY, JSON.stringify(bk.pending)); } catch (e) { restoring = false; bkSay('Não deu para gravar o backup neste aparelho.', true); return false; }
+    location.reload();
+    return false;
+  };
+  MORE.push({ id: 'backup', label: 'Backup da cidade', desc: () => 'Guarde um código para não perder sua cidade, ou restaure um backup.', open: openBackup });
 
   // ---------- Laço ----------
   let last = performance.now();

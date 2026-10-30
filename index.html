@@ -571,8 +571,8 @@ body[data-mode="run"] .alerts { display: none; }
 
   // ---------- Extensões ----------
   // Menus (XS), ações de botão (XA) e ganchos usados pelos sistemas novos (clima, eventos, minijogos...).
-  const XS = {}, XA = {};
-  const HOOK = { state: [], update: [], dawn: [], night: [], kill: [], begin: [], worldBack: [], worldFront: [], screen: [], zspeed: [], biz: [], hud: [], spawn: [], hit: [], dmg: [] };
+  const XS = {}, XA = {}, XE = {};
+  const HOOK = { state: [], update: [], dawn: [], night: [], kill: [], begin: [], worldBack: [], worldFront: [], screen: [], zspeed: [], biz: [], hud: [], spawn: [], hit: [], dmg: [], breach: [] };
   const runHooks = (name, ...a) => { for (const f of HOOK[name]) f(...a); };
   const mulHooks = (name, ...a) => HOOK[name].reduce((m, f) => m * f(...a), 1);
 
@@ -970,6 +970,7 @@ body[data-mode="run"] .alerts { display: none; }
     if (z.hp <= 0) killZombie(z, { noChain });
   }
   function gateBreach() {
+    runHooks('breach');
     const lost = Math.floor(S.coins * 0.25);
     S.coins -= lost;
     let victim = null;
@@ -1854,7 +1855,7 @@ body[data-mode="run"] .alerts { display: none; }
           toast(`${p.name} chegou ao portão e quer morar na cidade. Toque no aviso para aceitar ou recusar.`, 'event'); sfx.radio();
         } else if (p.decided && S.people.length < capacity()) {
           p.gone = true;
-          const np = { id: S.nextId++, name: p.name, cat: p.cat, work: null, skin: p.skin, shirt: p.shirt, hair: p.hair, lvl: p.lvl || 1 };
+          const np = { id: S.nextId++, name: p.name, cat: p.cat, work: null, skin: p.skin, shirt: p.shirt, hair: p.hair, lvl: p.lvl || 1, famous: p.famous };
           S.people.push(np);
           walkers.set(np.id, { x: GX + 30, tx: GX + 60, wait: 0, t: 0, face: 1 });
           toast(`${p.name} entrou na cidade! Personalidade: ${CAT_PERSONA[p.cat]} (sonha com ${p.cat}).`, 'good'); sfx.arrive();
@@ -1868,7 +1869,7 @@ body[data-mode="run"] .alerts { display: none; }
     // torre
     if (S.up.turret > 0) {
       turretT -= dt;
-      const tgt = zombies.filter(z => !z.dead && z.x < GATE_X + 620).sort((a, b) => a.x - b.x)[0];
+      const tgt = zombies.filter(z => !z.dead && !ZT[z.type].peace && z.x < GATE_X + 620).sort((a, b) => a.x - b.x)[0];
       if (turretT <= 0 && tgt) {
         turretT = [0, 1.6, 1.1, 0.7][S.up.turret];
         hurtZombie(tgt, (1 + 0.5 * (S.up.turret - 1)) * dmgMul());
@@ -4271,6 +4272,7 @@ body[data-mode="run"] .alerts { display: none; }
     if (b.dataset.ev === 'request' && S.request) openSheet('request');
     if (b.dataset.ev === 'trader' && trader) openSheet('trade');
     if (b.dataset.ev === 'weather') openSheet('weather');
+    if (XE[b.dataset.ev]) XE[b.dataset.ev]();
   });
 
   // ---------- Entrada ----------
@@ -4646,7 +4648,7 @@ body[data-mode="run"] .alerts { display: none; }
       const d = L ? BLD[L.type] : null;
       const where = d ? d.name + (p.cat === d.cat ? ' ★' : '') : 'sem trabalho';
       const training = S.lots.some(L => L && L.trainee === p.id);
-      return `<div class="person">${pframe(p)}<span class="who"><b>${p.name}</b><span>Nível ${p.lvl || 1} · sonha trabalhar com ${p.cat}</span></span>${ptype(p, training ? 'treinando' : where)}
+      return `<div class="person">${pframe(p)}<span class="who"><b>${p.name}${p.famous ? ' ⭐' : ''}</b><span>Nível ${p.lvl || 1} · sonha trabalhar com ${p.cat}${p.famous ? ' · ' + FAMOUS.find(f => f.id === p.famous).perk : ''}</span></span>${ptype(p, training ? 'treinando' : where)}
         <button class="btn red sm" data-act="expel" data-id="${p.id}">${expelAsk === p.id ? 'Confirmar?' : 'Expulsar'}</button></div>`;
     }).join('');
     const tabs = `<div class="tabs"><button type="button" data-act="pfilter" class="${peopleFilter ? '' : 'on'}" style="background:#7a2a2a">Todos</button>${CATS.map(c => `<button type="button" data-act="pfilter" data-cat="${c}" class="${peopleFilter === c ? 'on' : ''}" style="background:${CAT_COL[c]}">${BLOB(CAT_COL[c])}${CAT_PERSONA[c]}</button>`).join('')}</div>`;
@@ -4748,7 +4750,7 @@ body[data-mode="run"] .alerts { display: none; }
     const offers = trader.offers.map((o, i) => `<div class="opt${o.used ? ' on' : ''}"><b>${o.text}</b>
       ${o.get.person && S.people.length >= capacity() ? '<p class="note">Precisa de uma vaga livre em casa.</p>' : ''}
       <button class="btn" data-act="trade" data-i="${i}" ${o.used || !can(o) ? 'disabled' : ''}>${o.used ? 'Feito' : cost(o)}</button></div>`).join('');
-    return `<h2>Caravana do comerciante</h2><p>Ela vai embora em ${Math.ceil(trader.t)}s. Cada oferta só pode ser usada uma vez.</p><div class="grid">${offers}</div>`;
+    return `<h2>${trader.caravan ? 'Caravana de comerciantes' : 'Caravana do comerciante'}</h2><p>Ela vai embora em ${Math.ceil(trader.t)}s. Cada oferta só pode ser usada uma vez.</p><div class="grid">${offers}</div>`;
   }
   function requestHTML() {
     const r = S.request;
@@ -4993,6 +4995,8 @@ body[data-mode="run"] .alerts { display: none; }
         S.coins += o.get.coins || 0; S.goods = Math.min(GOODS_MAX, S.goods + (o.get.goods || 0)); S.tokens += o.get.tokens || 0;
         if (o.get.gate) S.gateHp = Math.min(gateMax(), S.gateHp + o.get.gate);
         if (o.get.person) { const p = makePerson(); S.people.push(p); toast(`${p.name} veio com a caravana e agora mora na cidade.`, 'good'); }
+        if (o.get.weapon && !S.weapons.includes(o.get.weapon)) { S.weapons.push(o.get.weapon); toast(`${WEAPONS.find(w => w.id === o.get.weapon).name} é sua!`, 'good'); }
+        if (o.get.joy) { S.joyBoost = Math.max(S.joyBoost || 0, o.get.joy); toast('Os músicos começaram a tocar na praça!', 'good'); }
         if (o.get.resetRun) { const l = pick(coolingLocs()); delete S.runCD[l.id]; toast(`O mapa mostrou um caminho novo: a expedição ao ${l.name} já pode sair.`, 'good'); }
         o.used = true;
         sfx.coin();
@@ -5133,7 +5137,7 @@ body[data-mode="run"] .alerts { display: none; }
   });
   function strike() {
     flash = 1;
-    const seen = zombies.filter(z => !z.dead && z.type !== 'giant' && wxOf(z.x) > camX + 20 && wxOf(z.x) < camX + viewW - 20);
+    const seen = zombies.filter(z => !z.dead && z.type !== 'giant' && !ZT[z.type].peace && wxOf(z.x) > camX + 20 && wxOf(z.x) < camX + viewW - 20);
     const hit = seen.length && Math.random() < 0.45 ? pick(seen) : null;
     const wx = hit ? wxOf(hit.x) : camX + rnd(0.1, 0.9) * viewW, gy = hit ? gp(hit.x, hit.lane).y - 30 : GROUND - rnd(60, 140);
     const pts = [[wx + rnd(-60, 60), -worldOY() - 20]];
@@ -5240,7 +5244,7 @@ body[data-mode="run"] .alerts { display: none; }
   }
   HOOK.begin.push(() => { festGift(); if (!S.wx.started) { S.wx.started = 1; setWeather(rollWeather(), true); } });
   HOOK.dawn.push(festGift);
-  HOOK.spawn.push(z => { const f = festival(); if (f && !['golden', 'giant', 'bloater'].includes(z.type) && Math.random() < 0.14) z.hat = f.hat; });
+  HOOK.spawn.push(z => { const f = festival(); if (f && !['golden', 'giant', 'bloater', 'musico'].includes(z.type) && Math.random() < 0.14) z.hat = f.hat; });
   HOOK.kill.push(z => {
     if (!z.hat) return;
     const f = Object.values(FEST).find(x => x.hat === z.hat), c = 6 + S.day * 2;
@@ -5249,7 +5253,7 @@ body[data-mode="run"] .alerts { display: none; }
     if (Math.random() < 0.05) { S.tokens++; floatE(z, 116 * ZT[z.type].size, '+1 ficha', '#9ff0f0'); }
   });
   // chapéus dos zumbis fantasiados (desenhados dentro de drawZombie, já na escala do zumbi)
-  function zHat(kind, hx, hy, O) {
+  let zHat = function (kind, hx, hy, O) {
     if (kind === 'bruxa') {
       ell(hx, hy - 17, 23, 5); O('#3a2a4a', 1.6);
       ctx.beginPath(); ctx.moveTo(hx - 12, hy - 19); ctx.quadraticCurveTo(hx - 2, hy - 40, hx + 12, hy - 52); ctx.quadraticCurveTo(hx + 6, hy - 36, hx + 12, hy - 19); ctx.closePath(); O('#4a3a6a', 1.6);
@@ -5263,7 +5267,7 @@ body[data-mode="run"] .alerts { display: none; }
       rr(hx - 13, hy - 21, 26, 4, 1); O('#e04f4f', 1.1);
       ctx.strokeStyle = '#b08a30'; ctx.lineWidth = 0.8; for (let q = -20; q <= 20; q += 6) { ctx.beginPath(); ctx.moveTo(hx + q, hy - 13); ctx.lineTo(hx + q * 1.1, hy - 17); ctx.stroke(); }
     }
-  }
+  };
   // enfeites da festa na rua
   const fireLit = (x, y, t, k = 1) => {
     const fl = Math.sin(t * 12 + x) * 2;
@@ -5454,7 +5458,7 @@ body[data-mode="run"] .alerts { display: none; }
     while (mines.length < nm) mines.push({ x: GATE_X + MINE_X[mines.length], lane: [-0.2, 0.4, -0.5, 0.1][mines.length], armT: 0 });
     for (const m of mines) {
       if (m.armT > 0) { m.armT -= dt; continue; }
-      const z = zombies.find(z => !z.dead && z.type !== 'golden' && Math.abs(z.x - m.x) < 12);
+      const z = zombies.find(z => !z.dead && z.type !== 'golden' && !ZT[z.type].peace && Math.abs(z.x - m.x) < 12);
       if (z) {
         m.armT = [0, 40, 30, 20][S.up.minas];
         const dmg = 7 * S.up.minas * (1 + 0.1 * S.day);
@@ -5481,7 +5485,7 @@ body[data-mode="run"] .alerts { display: none; }
     if (smax) {
       if (scare.hp <= 0) { scare.t -= dt; if (scare.t <= 0) { scare.hp = smax; } }
       else for (const z of zombies) {
-        if (z.dead || z.type === 'golden' || z.type === 'giant' || z.type === 'spitter' || z.glueT > 0) continue;
+        if (z.dead || z.type === 'golden' || z.type === 'giant' || z.type === 'spitter' || ZT[z.type].peace || z.glueT > 0) continue;
         if (z.x < SCARE_X() + 4 && z.x > SCARE_X() - 30) {
           z.x = SCARE_X() + 2; z.state = 'attack';
           scare.hp -= ZT[z.type].dmg * dt * 0.8;
@@ -5550,7 +5554,7 @@ body[data-mode="run"] .alerts { display: none; }
       dog.t += dt; dog.cd = Math.max(0, dog.cd - dt);
       const home = GX + 40;
       if (dog.state === 'home' && dog.cd <= 0) {
-        const z = zombies.filter(z => !z.dead && z.type !== 'golden' && z.x < GATE_X + DEF_W + 170).sort((a, b) => a.x - b.x)[0];
+        const z = zombies.filter(z => !z.dead && z.type !== 'golden' && !ZT[z.type].peace && z.x < GATE_X + DEF_W + 170).sort((a, b) => a.x - b.x)[0];
         if (z) { dog.z = z; dog.state = 'run'; dog.bites = 0; sfx.woof(); }
       }
       if (dog.state === 'run') {
@@ -5619,6 +5623,142 @@ body[data-mode="run"] .alerts { display: none; }
     if (S.pets.dog && dog.wx > camX - 40 && dog.wx < camX + viewW + 40) drawDog(dog.wx, GROUND + (dog.state === 'home' ? 12 : 10), dog.face, dog.state !== 'home', t);
     if (S.pets.cat && cat.wx > camX - 40 && cat.wx < camX + viewW + 40) drawCat(cat.wx, GROUND + 14, cat.face, cat.wait <= 0, t, cat.box);
   });
+
+  // ---------- Eventos novos ----------
+  // caravana grande, horda migratória, apagão, sobrevivente famoso e zumbi músico
+  ZT.musico = { name: 'zumbi músico', hp: 4, spd: 0, dmg: 0, coin: 10, xp: 3, size: 1, peace: true, skin: '#8aa0c8', patch: '#a07ac0', shirt: '#f0842a', pants: '#3a3a5a', dress: '#c050a0', hairM: '#2b1d2e', hairF: '#5a2a6a' };
+  const FAMOUS = [
+    { id: 'chef', name: 'Chef Paçoca', cat: 'Comida', perk: 'Negócio de Comida onde trabalha vende 50% a mais.' },
+    { id: 'moda', name: 'Dona Vitrine', cat: 'Varejo', perk: 'Negócio de Varejo onde trabalha vende 50% a mais.' },
+    { id: 'faisca', name: 'Mestre Faísca', cat: 'Serviço', perk: 'Negócio de Serviço onde trabalha vende 50% a mais.' },
+    { id: 'dj', name: 'DJ Batidão', cat: 'Lazer', perk: 'Negócio de Lazer onde trabalha vende 50% a mais e a cidade fica mais alegre.' },
+    { id: 'trovao', name: 'Capitã Trovão', cat: 'Defesa', perk: 'Só de morar aqui, todas as armas dão +20% de dano.' },
+  ];
+  const famousFree = () => FAMOUS.filter(f => !S.people.some(p => p.famous === f.id) && !incoming.some(p => p.famous === f.id));
+  HOOK.biz.push(L => {
+    const i = S.lots.indexOf(L);
+    return workersOf(i).some(p => p.famous && FAMOUS.find(f => f.id === p.famous).cat === BLD[L.type].cat) ? 1.5 : 1;
+  });
+  HOOK.dmg.push(() => (S.people.some(p => p.famous === 'trovao') ? 1.2 : 1));
+  const caravanOffers = () => {
+    const l = S.level, list = [];
+    const w = WEAPONS.filter(w => !w.tokens && w.price && !S.weapons.includes(w.id) && w.lvl <= l + 2);
+    if (w.length) { const x = pick(w); list.push({ id: 'weapon', text: `${x.name} com 40% de desconto${x.lvl > l ? ' (antes do nível!)' : ''}`, pay: { coins: Math.round(x.price * 0.6) }, get: { weapon: x.id } }); }
+    list.push({ id: 'tokens', text: 'Saquinho com 3 fichas', pay: { coins: 450 + 90 * l }, get: { tokens: 3 } });
+    list.push({ id: 'cart', text: `Carroça cheia: ${50 + l * 4} caixas`, pay: { coins: 240 + 22 * l }, get: { goods: 50 + l * 4 } });
+    list.push({ id: 'band', text: 'Músicos viajantes tocam na praça (cidade mais alegre por 5 min)', pay: { coins: 120 + 15 * l }, get: { joy: 300 } });
+    return list;
+  };
+  Object.assign(EVENTS, {
+    caravan: { w: () => (isNight() || S.level < 3 || trader ? 0 : 0.6), run() {
+      trader = { t: 100, offers: caravanOffers(), x: GX + 150, caravan: true };
+      setBanner('Caravana de comerciantes!', 'Itens raros por pouco tempo. Toque nas carroças');
+      logEvent('uma caravana grande passou pela cidade');
+      sfx.horn(); setTimeout(() => sfx.horn(), 400);
+    } },
+    blackout: { w: () => (S.day >= 3 && !(S.blackout > 0) ? 0.7 : 0), run() {
+      S.blackout = 75;
+      setBanner('Apagão!', 'Os negócios vendem pela metade. Toque no aviso para religar o gerador');
+      logEvent('faltou luz na cidade');
+      sfx.bad();
+    } },
+    famous: { w: () => (isNight() || S.level < 4 || !famousFree().length ? 0 : 0.45), run() {
+      const f = pick(famousFree());
+      const p = spawnSurvivor({ quiet: true });
+      Object.assign(p, { name: f.name, cat: f.cat, famous: f.id, lvl: 5 });
+      setBanner('Alguém famoso lá fora!', `${f.name} pede abrigo. ${f.perk}`);
+      logEvent(`${f.name} apareceu no portão`);
+      sfx.radio();
+    } },
+    musician: { w: () => (isNight() || S.day < 2 || zombies.some(z => z.type === 'musico') ? 0 : 0.8), run() {
+      const z = spawnZombie('musico'); z.hat = 'violao'; z.x = Math.max(z.x, GATE_X + 700); z.playT = 0;
+      toast('Um zumbi com um violão vem pela estrada... Se você não atirar, ele toca para a cidade!', 'event');
+      logEvent('um zumbi músico apareceu');
+    } },
+  });
+  // zumbi músico: anda devagar, para perto do portão e toca; quem deixa ele tocar ganha alegria e moedas
+  HOOK.update.push(dt => {
+    for (const z of zombies) {
+      if (z.type !== 'musico' || z.dead) continue;
+      if (z.leaving) { z.x += 30 * dt; z.state = 'walk'; if (z.x > WORLD_W + 40) z.dead = true; continue; }
+      if (z.x > GATE_X + 300) { z.x -= 14 * dt; z.state = 'walk'; continue; }
+      z.state = 'play'; z.playT += dt;
+      if (Math.random() < dt * 1.5) floatE(z, 70, pick(['♪', '♫', '♬']), '#ffffff');
+      if (z.playT >= 18) {
+        z.leaving = true;
+        const c = 60 + S.day * 8; S.coins += c; S.joyBoost = Math.max(S.joyBoost || 0, 240);
+        setBanner('Que show!', `O zumbi músico tocou para a cidade: +${c} moedas e mais alegria por 4 minutos`);
+        logEvent('um zumbi músico fez um show no portão'); sfx.dawn();
+      }
+    }
+  });
+  HOOK.kill.push(z => { if (z.type === 'musico') toast('Ele só queria tocar uma música...', 'bad'); });
+  // horda migratória: algumas noites trazem muito mais zumbis, mas dão prêmio de manhã
+  let migrT = 0;
+  HOOK.night.push(() => {
+    if (S.day >= 4 && !S.bloodMoon && Math.random() < 0.15) {
+      S.migr = { ok: 1 };
+      setTimeout(() => setBanner('Horda migratória!', 'Uma multidão de zumbis passa esta noite. Aguente até o amanhecer!'), 3100);
+      logEvent('uma horda migratória passou à noite');
+    }
+  });
+  HOOK.update.push(dt => {
+    if (!S.migr || !isNight()) return;
+    migrT -= dt;
+    if (migrT <= 0) { migrT = rnd(1.6, 2.6); spawnZombie(Math.random() < 0.12 ? 'brute' : null); }
+  });
+  HOOK.breach.push(() => { if (S.migr) S.migr.ok = 0; });
+  HOOK.dawn.push(() => {
+    if (!S.migr) return;
+    if (S.migr.ok) { const c = 250 + 60 * S.day; S.coins += c; S.tokens += 2; setTimeout(() => setBanner('Horda superada!', `O portão aguentou: +${c} moedas e 2 fichas`), 1500); }
+    S.migr = null;
+  });
+  // apagão: tudo escuro e vendas pela metade até o gerador voltar
+  HOOK.biz.push(() => (S.blackout > 0 ? 0.5 : 1));
+  HOOK.update.push(dt => { if (S.blackout > 0) { S.blackout -= dt; if (S.blackout <= 0) { S.blackout = 0; toast('A luz voltou!', 'good'); } } });
+  HOOK.screen.push(() => {
+    if (!(S.blackout > 0)) return;
+    const a = Math.min(1, S.blackout / 2) * 0.45;
+    const g = ctx.createRadialGradient(viewW / 2, viewH / 2, viewH * 0.2, viewW / 2, viewH / 2, viewW * 0.7);
+    g.addColorStop(0, `rgba(8,6,20,${a * 0.6})`); g.addColorStop(1, `rgba(8,6,20,${a * 1.4})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, viewW, viewH);
+  });
+  const genCost = () => 10 + S.level * 2;
+  XE.blackout = () => openSheet('blackout');
+  XS.blackout = () => S.blackout > 0
+    ? `<h2>Apagão</h2><p>A cidade está sem luz e os negócios vendem pela metade. A luz volta sozinha em ${Math.ceil(S.blackout)}s, ou dá para religar o gerador agora com caixas de combustível.</p>
+      <div class="row"><button class="btn green" data-act="fixPower" data-primary ${S.goods < genCost() ? 'disabled' : ''}>Religar gerador · ${genCost()} ${BOX_SVG}</button></div>`
+    : '<h2>Apagão</h2><p>A luz já voltou!</p>';
+  XA.fixPower = () => { if (!(S.blackout > 0) || S.goods < genCost()) return; S.goods -= genCost(); S.blackout = 0; toast('Gerador religado! A luz voltou.', 'good'); sfx.build(); };
+  HOOK.hud.push(ev => {
+    if (S.blackout > 0) ev.push(`<button class="chip ev hot" data-ev="blackout" type="button">Apagão · ${Math.ceil(S.blackout)}s</button>`);
+    if (S.migr && isNight()) ev.push(`<span class="chip ev" style="background:#7a3a9a;color:#fff4e0">Horda migratória</span>`);
+    if (S.joyBoost > 0) ev.push(`<span class="chip ev" style="background:#e3f6cf">Cidade animada · ${Math.ceil(S.joyBoost)}s</span>`);
+  });
+  // carroças extras da caravana
+  HOOK.worldFront.push(() => {
+    if (!trader || !trader.caravan) return;
+    for (const dx of [-110, 110]) {
+      const x = trader.x + dx, y = GROUND + 2;
+      if (x < camX - 80 || x > camX + viewW + 80) continue;
+      shadow(x, y + 1, 36, 4);
+      rr(x - 28, y - 36, 56, 26, 5); fsg(grad(0, y - 36, 0, y - 10, '#8a5ac0', '#5a3a8a'), '#3a2060', 2);
+      ctx.beginPath(); ctx.moveTo(x - 32, y - 36); ctx.quadraticCurveTo(x, y - 70, x + 32, y - 36); ctx.closePath(); fs(dx < 0 ? '#f6d05b' : '#7cdf9a', 2);
+      circle(x - 18, y - 8, 9); fs('#6b4a3a', 2); circle(x + 18, y - 8, 9); fs('#6b4a3a', 2);
+      for (let k = -2; k <= 2; k++) { ctx.fillStyle = ['#e04f4f', '#3f8ae0', '#ffd23f'][(k + 2) % 3]; circle(x + k * 10, y - 42 - Math.abs(k) * -2, 2.2); ctx.fill(); }
+    }
+  });
+  // violão do zumbi músico
+  const zHat0 = zHat;
+  zHat = function (kind, hx, hy, O) {
+    if (kind !== 'violao') return zHat0(kind, hx, hy, O);
+    ell(hx, hy - 17, 20, 4.5); O('#3a2a1a', 1.4); ctx.beginPath(); ctx.moveTo(hx - 11, hy - 18); ctx.quadraticCurveTo(hx, hy - 34, hx + 11, hy - 18); ctx.closePath(); O('#5a3a2a', 1.4);
+    ctx.save(); ctx.translate(hx + 2, hy + 30); ctx.rotate(-0.9 + Math.sin(performance.now() / 120) * 0.05);
+    rr(-2.5, -34, 5, 26, 1.5); O('#6a3a1a', 1.2);
+    ctx.beginPath(); ctx.ellipse(0, -2, 12, 10, 0, 0, TAU); ctx.ellipse(0, -13, 9, 7, 0, 0, TAU); O('#f0a040', 1.4);
+    circle(0, -8, 3.4); O('#3a2a1a', 1);
+    ctx.restore();
+  };
 
   // ---------- Menu "Mais" ----------
   // Cada sistema novo se registra aqui com um cartão (rótulo, descrição e o que abrir).
@@ -5747,7 +5887,7 @@ body[data-mode="run"] .alerts { display: none; }
   // alegria da cidade: decorações (e alguns negócios) contra o tamanho da população
   const joyOf = L => (BLD[L.type].joy || 0) * (1 + 0.5 * (L.lvl - 1));
   const decoJoy = () => S.lots.reduce((a, L, i) => a + (L && i < S.lotsOpen && !(L.build > 0) && BLD[L.type].joy ? joyOf(L) : 0), 0);
-  const happiness = () => clamp(0.5 + 0.5 * decoJoy() / (3 + S.people.length) + (S.joyBoost > 0 ? 0.15 : 0), 0, 1);
+  const happiness = () => clamp(0.5 + 0.5 * decoJoy() / (3 + S.people.length) + (S.joyBoost > 0 ? 0.15 : 0) + (S.people.some(p => p.famous === 'dj') ? 0.1 : 0), 0, 1);
   const happyMul = () => 0.85 + 0.3 * happiness();
   const happyTxt = () => { const h = happiness(); return `${Math.round(h * 100)}% ${h >= 0.85 ? '😄' : h >= 0.6 ? '🙂' : '😐'}`; };
   HOOK.biz.push(() => happyMul());

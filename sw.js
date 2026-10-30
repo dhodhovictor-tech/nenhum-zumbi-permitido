@@ -1,7 +1,8 @@
-// Guarda o jogo no aparelho para abrir rápido e funcionar sem internet.
-// Ao publicar uma versão nova, aumente VERSION para os celulares baixarem a atualização.
-const VERSION = 'barricada-v1';
-const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+// Guarda o jogo no aparelho para funcionar sem internet.
+// A página e o manifesto vêm sempre da internet quando possível (assim as atualizações chegam na hora);
+// o resto usa o que está guardado e atualiza em segundo plano. Sem internet, tudo vem do que foi guardado.
+const VERSION = 'barricada-v2';
+const SHELL = ['./', 'index.html', 'app.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -15,17 +16,17 @@ self.addEventListener('activate', e => {
   );
 });
 
-// Usa o que está guardado na hora e busca a versão nova em segundo plano (inclusive as fontes do Google).
 self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET') return;
+  const fresh = req.mode === 'navigate' || req.destination === 'manifest';
   e.respondWith(
     caches.open(VERSION).then(async cache => {
       const hit = await cache.match(req, { ignoreSearch: req.mode === 'navigate' });
       const net = fetch(req)
         .then(res => { if (res && (res.ok || res.type === 'opaque')) cache.put(req, res.clone()); return res; })
         .catch(() => hit);
-      return hit || net;
+      return fresh ? net : (hit || net);
     })
   );
 });

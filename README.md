@@ -7,7 +7,7 @@ O jogo é um app web instalável (PWA): abre em tela cheia, tem ícone próprio 
 ## Arquivos
 
 - `index.html` — o jogo inteiro (HTML, CSS e JavaScript num arquivo só)
-- `manifest.webmanifest` — nome, ícone e modo tela cheia do app
+- `app.webmanifest` — nome, ícone e modo tela cheia do app
 - `sw.js` — guarda o jogo no aparelho para funcionar offline. **Ao publicar uma versão nova, aumente `VERSION`** para os celulares baixarem a atualização.
 - `icons/` — ícones do app
 

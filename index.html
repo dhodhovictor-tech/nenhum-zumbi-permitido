@@ -321,7 +321,7 @@ body[data-mode="run"] .alerts { display: none; }
 .banner { position: absolute; left: 50%; top: -38px; transform: translateX(-50%); white-space: nowrap; font-family: var(--font-display); font-size: clamp(28px, 6vw, 50px); color: #fff8e4; -webkit-text-stroke: 2px #5a1a0a; text-shadow: 0 4px 0 #5a1a0a; letter-spacing: 0.02em; pointer-events: none; }
 .q { text-align: center; font-family: var(--font-display); font-size: clamp(16px, 3vw, 22px) !important; color: #3a1408 !important; margin: 2px auto 6px !important; max-width: none !important; letter-spacing: 0.02em; }
 .pickType { display: grid; grid-template-columns: 1fr minmax(120px, 240px); gap: 18px; align-items: center; }
-.pickType .col { display: grid; gap: 22px; padding: 14px 10px; background: linear-gradient(transparent 0 8%, rgba(255,214,120,0.55) 8% 92%, transparent 92%); }
+.pickType .col { display: grid; gap: 16px; padding: 14px 10px; background: linear-gradient(transparent 0 8%, rgba(255,214,120,0.55) 8% 92%, transparent 92%); }
 .bigbtn {
   font-family: var(--font-display); font-size: clamp(22px, 4vw, 32px); color: #fff; padding: 22px 10px 16px; border: 5px solid #6a1f14; border-radius: 12px; cursor: pointer; letter-spacing: 0.03em;
   background: linear-gradient(#7af0ea, #22c4be 50%, #149a96); box-shadow: inset 0 4px 0 rgba(255,255,255,0.5), 0 4px 0 #3a0c06;
@@ -336,6 +336,7 @@ body[data-mode="run"] .alerts { display: none; }
 .pill { font-family: var(--font-display); font-size: clamp(12px, 2.2vw, 16px); color: #fff; border: 0; border-radius: 8px; padding: 9px 6px 7px; cursor: pointer; letter-spacing: 0.04em; text-shadow: 0 2px 0 rgba(0,0,0,0.3); box-shadow: inset 0 2px 0 rgba(255,255,255,0.3), 0 3px 0 rgba(60,20,10,0.5); }
 .pill.home { background: linear-gradient(#dc8040, #b85a2a); }
 .pill.biz { background: linear-gradient(#5aa8f0, #2f7ad0); }
+.pill.deco { background: linear-gradient(#7ad07a, #3a9a4a); }
 .pill:disabled { background: #b8a888; cursor: default; box-shadow: none; }
 .offer .price { display: inline-flex; gap: 4px; justify-content: center; align-items: center; font-weight: 700; color: #3a1408; font-size: 14px; }
 .offer .price .ic { width: 18px; height: 18px; }
@@ -694,7 +695,7 @@ body[data-mode="run"] .alerts { display: none; }
         }
         return;
       }
-      if (d.home || d.train || d.radio || d.bankB) return;
+      if (d.home || d.deco || d.train || d.radio || d.bankB) return;
       const ws = workersOf(i);
       if (d.goods) {
         if (!ws.length) return;
@@ -2461,6 +2462,7 @@ body[data-mode="run"] .alerts { display: none; }
     ctx.save(); ctx.translate(cx, by); ctx.lineJoin = 'round'; ctx.lineCap = 'round';
     const O = (c, lw = 2) => { ctx.fillStyle = c; ctx.fill(); ctx.lineWidth = lw; ctx.strokeStyle = INK; ctx.stroke(); };
     const hl = (x, y, rx, ry) => { ctx.fillStyle = 'rgba(255,255,255,0.45)'; ell(x, y, rx, ry); ctx.fill(); };
+    if (ICON_X[name]) { ICON_X[name](O, hl, t); ctx.restore(); return; }
     switch (name) {
       case 'coffee':
         ell(0, -5, 30, 6); O('#f4f4f0');
@@ -3669,7 +3671,7 @@ body[data-mode="run"] .alerts { display: none; }
     const d = BLD[L.type], x = lotX(i), w = LOT_W, cx = x + w / 2, t = performance.now() / 1000;
     const people = d.home ? (residents.get(i) || []) : workersOf(i);
     const r = (SHAPES[L.type] || BIZ[L.type])({ i, x, w, cx, L, d, nf, t, rooms, people, D: c => mix(c, '#2a2040', nf * 0.45) });
-    if (!d.home) bizOverlay(i, L, d, x, w, cx, r.ib, r.barY, t);
+    if (!d.home && !d.deco) bizOverlay(i, L, d, x, w, cx, r.ib, r.barY, t);
   }
   // barra de progresso e balões em cima dos negócios
   function bizOverlay(i, L, d, x, w, cx, iconTop, barY, t) {
@@ -4232,7 +4234,7 @@ body[data-mode="run"] .alerts { display: none; }
     const idle = S.lots.findIndex((L, i) => L && i < S.lotsOpen && !(L.build > 0) && BLD[L.type].products && L.state === 'idle' && workersOf(i).length);
     if (idle >= 0 && S.goods >= TIER[0].goods) al.push(['stock', 'estoque']);
     if (S.missions.some(m => m.prog >= m.n)) al.push(['missions', 'missão']);
-    if (S.people.some(p => p.work === null) && S.lots.some((L, i) => L && !(L.build > 0) && !BLD[L.type].home && !BLD[L.type].school && workersOf(i).length < 3)) al.push(['jobs', 'sem emprego']);
+    if (S.people.some(p => p.work === null) && S.lots.some((L, i) => L && !(L.build > 0) && !BLD[L.type].home && !BLD[L.type].school && !BLD[L.type].deco && workersOf(i).length < 3)) al.push(['jobs', 'sem emprego']);
     const html = al.map(([a, label]) => `<button class="alert" data-al="${a}" type="button" title="${label}">!<small>${label}</small></button>`).join('');
     if (html !== lastAlerts) { $('hAlerts').innerHTML = html; lastAlerts = html; }
   }
@@ -4470,6 +4472,7 @@ body[data-mode="run"] .alerts { display: none; }
       ? `<button class="btn alt" data-act="upgradeB" ${S.coins < upCost(L) ? 'disabled' : ''}>Melhorar para nível ${L.lvl + 1} · ${coinBtn(upCost(L))}</button>`
       : '<p class="note">Nível máximo.</p>';
     if (d.school) return schoolHTML(i, L, d, upBtn);
+    if (d.deco) return decoHTML(i, L, d, upBtn);
     if (d.home) {
       return `<h2>${d.name} <span class="lvl">nível ${L.lvl}</span></h2>
         <p>Abriga ${homeCap(L)} moradores. A cidade toda tem ${S.people.length} moradores para ${capacity()} vagas.</p>
@@ -4516,13 +4519,13 @@ body[data-mode="run"] .alerts { display: none; }
   let buildKind = null;
   const isHome = k => !!BLD[k].home;
   function rollOffers(kind) {
-    const all = Object.keys(BLD).filter(k => isHome(k) === (kind === 'home'));
+    const all = Object.keys(BLD).filter(k => kindOf(k) === kind);
     const open = all.filter(k => S.level >= BLD[k].lvl);
     const built = new Set(S.lots.filter(Boolean).map(L => L.type));
     const shuffle = a => { a = a.slice(); for (let k = a.length - 1; k > 0; k--) { const j = Math.floor(Math.random() * (k + 1)); [a[k], a[j]] = [a[j], a[k]]; } return a; };
     const out = [];
     if (kind === 'biz' && open.includes('treino') && !built.has('treino')) out.push('treino');
-    const fresh = shuffle(open.filter(k => kind === 'home' || !built.has(k)));
+    const fresh = shuffle(open.filter(k => kind !== 'biz' || !built.has(k)));
     for (const k of fresh.concat(shuffle(open))) if (out.length < 3 && !out.includes(k)) out.push(k);
     for (const k of all.filter(k => !open.includes(k)).sort((a, b) => BLD[a].lvl - BLD[b].lvl)) if (out.length < 3) out.push(k);
     return shuffle(out);
@@ -4536,6 +4539,7 @@ body[data-mode="run"] .alerts { display: none; }
   function offerDesc(k) {
     const d = BLD[k];
     if (d.home) return `Abriga ${(d.cap ?? 1) + 2} moradores. ${d.desc}`;
+    if (d.deco) return `+${d.joy} de alegria. ${d.desc}`;
     if (d.school || !d.products) return d.desc;
     return `${d.cat}: vende ${d.products.join(', ').toLowerCase()}.${d.extra ? ' ' + d.extra : ''}`;
   }
@@ -4545,8 +4549,9 @@ body[data-mode="run"] .alerts { display: none; }
         <div class="pickType"><div class="col">
           <button class="bigbtn" type="button" data-act="pickKind" data-k="biz" data-primary>Comércio</button>
           <button class="bigbtn" type="button" data-act="pickKind" data-k="home">Moradia</button>
+          <button class="bigbtn" type="button" data-act="pickKind" data-k="deco">Decoração</button>
         </div><img src="${typeArt()}" alt=""></div>
-        <p class="note" style="text-align:center;margin:0 auto">Moradias abrigam quem chega. Comércios dão emprego e vendem para a cidade.</p>`;
+        <p class="note" style="text-align:center;margin:0 auto">Moradias abrigam quem chega. Comércios dão emprego e vendem para a cidade. Decorações deixam os moradores felizes, e gente feliz vende mais.</p>`;
     }
     const offers = getOffers(buildKind), rc = rerollCost();
     const cards = offers.map(k => {
@@ -4644,7 +4649,7 @@ body[data-mode="run"] .alerts { display: none; }
     const tabs = `<div class="tabs"><button type="button" data-act="pfilter" class="${peopleFilter ? '' : 'on'}" style="background:#7a2a2a">Todos</button>${CATS.map(c => `<button type="button" data-act="pfilter" data-cat="${c}" class="${peopleFilter === c ? 'on' : ''}" style="background:${CAT_COL[c]}">${BLOB(CAT_COL[c])}${CAT_PERSONA[c]}</button>`).join('')}</div>`;
     const heroes = Object.entries(HEROES).map(([id, h]) => `<div class="person${S.heroes.includes(id) ? ' done' : ''}">${S.heroes.includes(id) ? pframe({ ...h, hero: id, id }) : '<span class="pframe"></span>'}
       <span class="who"><b>${S.heroes.includes(id) ? h.name : '???'}</b><span>${S.heroes.includes(id) ? h.desc : 'Ainda não encontrado. Heróis aparecem pedindo socorro no portão ou escondidos nas expedições.'}</span></span></div>`).join('');
-    return `<h2>Sobreviventes <span class="lvl" style="-webkit-text-stroke:0;text-shadow:none">Barricada · ${S.people.length} de ${capacity()} vagas</span></h2>
+    return `<h2>Sobreviventes <span class="lvl" style="-webkit-text-stroke:0;text-shadow:none">Barricada · ${S.people.length} de ${capacity()} vagas · alegria ${happyTxt()}</span></h2>
       <p class="note" style="color:#6a3a1a">Para contratar, toque num negócio da rua. Quem trabalha na categoria dos sonhos rende mais. A estrela mostra a experiência de cada um.</p>
       ${tabs}
       <div class="list">${rows || '<p class="note">Ninguém com essa personalidade mora aqui ainda.</p>'}</div>
@@ -4780,7 +4785,7 @@ body[data-mode="run"] .alerts { display: none; }
         if (S.level < d.lvl) return;
         if (d.premium) { if (S.tokens < d.premium) return; S.tokens -= d.premium; }
         else { if (S.coins < d.cost) return; S.coins -= d.cost; }
-        if (S.offers) S.offers[d.home ? 'home' : 'biz'] = null;
+        if (S.offers) S.offers[kindOf(b.dataset.type)] = null;
         S.lots[sheetArg] = newLot(b.dataset.type);
         S.lots[sheetArg].build = d.premium ? 30 : Math.round(clamp(d.cost / 5, 20, 180));
         puff(lotX(sheetArg) + LOT_W / 2, GROUND - 40, 24);
@@ -5460,6 +5465,403 @@ body[data-mode="run"] .alerts { display: none; }
     return false;
   };
   MORE.push({ id: 'backup', label: 'Backup da cidade', desc: () => 'Guarde um código para não perder sua cidade, ou restaure um backup.', open: openBackup });
+
+  // ---------- Construções novas: moradias, comércios e decoração ----------
+  Object.assign(BLD, {
+    onibus: { name: 'Ônibus escolar', cost: 130, lvl: 2, home: true, cap: 1, shape: true, body: '#f6c33b', roof: '#2b1d2e', h: 0, desc: 'Um ônibus escolar amarelo virou casa, com cortininha nas janelas.' },
+    vagao: { name: 'Vagão de trem', cost: 190, lvl: 3, home: true, cap: 2, shape: true, body: '#a8402e', roof: '#5a2a20', h: 0, desc: 'Um vagão antigo parado nos trilhos, com fogareiro e varanda.' },
+    barco: { name: 'Barco no seco', cost: 230, lvl: 3, home: true, cap: 2, shape: true, body: '#f4f4f0', roof: '#3f6ab0', h: 0, desc: 'Um barco de pesca encalhado no meio da rua. Ninguém sabe como ele chegou aqui.' },
+    domo: { name: 'Domo geodésico', cost: 300, lvl: 4, home: true, cap: 3, shape: true, body: '#d8e4e8', roof: '#4ac0c0', h: 0, desc: 'Uma cúpula de painéis triangulares, fresca no verão e quentinha no inverno.' },
+    igreja: { name: 'Igreja antiga', cost: 380, lvl: 5, home: true, cap: 3, shape: true, body: '#c8b8a0', roof: '#7a4a3a', h: 0, desc: 'Uma igreja de pedra com sino. Os bancos viraram camas.' },
+    circo: { name: 'Tenda de circo', cost: 460, lvl: 6, home: true, cap: 4, shape: true, body: '#e04f4f', roof: '#fff4e0', h: 0, desc: 'Uma lona listrada enorme, com bandeirinhas e luzes.' },
+    foodtruck: { name: 'Food truck', cat: 'Comida', cost: 190, lvl: 2, pay: 10, shape: true, products: ['Cachorro-quente', 'Batata frita', 'Combo do truck'], body: '#e0573f', roof: '#f6d05b', h: 0 },
+    acai: { name: 'Açaí da Esquina', cat: 'Comida', cost: 210, lvl: 3, pay: 11, shape: true, products: ['Copinho', 'Tigela', 'Balde de açaí'], body: '#7a3a9a', roof: '#5bbf7a', h: 0 },
+    feira: { name: 'Feira livre', cat: 'Comida', cost: 250, lvl: 3, pay: 12, shape: true, products: ['Pastel de feira', 'Frutas da estação', 'Xepa completa'], body: '#f08a3c', roof: '#3f8ae0', h: 0 },
+    bicicletaria: { name: 'Bicicletaria', cat: 'Serviço', cost: 240, lvl: 3, pay: 11, shape: true, products: ['Remendo de pneu', 'Revisão', 'Bike nova'], body: '#4ac0c0', roof: '#2f6a8a', h: 0 },
+    petshop: { name: 'Pet shop', cat: 'Varejo', cost: 260, lvl: 3, pay: 12, shape: true, products: ['Ração', 'Banho e tosa', 'Casinha nova'], body: '#9fd0f0', roof: '#f08a3c', h: 0, extra: 'Com funcionários, libera mascotes para a cidade.' },
+    floricultura: { name: 'Floricultura', cat: 'Varejo', cost: 280, lvl: 4, pay: 13, joy: 1, shape: true, products: ['Mudinha', 'Buquê', 'Arranjo de festa'], body: '#f8d8e0', roof: '#5bbf7a', h: 0, extra: 'Deixa a cidade um pouco mais alegre.' },
+    academia: { name: 'Academia', cat: 'Lazer', cost: 330, lvl: 4, pay: 14, shape: true, products: ['Aula avulsa', 'Mensalidade', 'Personal'], body: '#3a3a4a', roof: '#e04f4f', h: 0 },
+    tatuagem: { name: 'Estúdio de tatuagem', cat: 'Lazer', cost: 360, lvl: 5, pay: 16, shape: true, products: ['Tatuagem pequena', 'Braço fechado', 'Obra de arte'], body: '#2b2b38', roof: '#e04fa0', h: 0 },
+    estudio: { name: 'Estúdio de música', cat: 'Lazer', cost: 440, lvl: 6, pay: 19, joy: 1, shape: true, products: ['Ensaio', 'Gravação', 'Show na praça'], body: '#5a3a8a', roof: '#f6d05b', h: 0, extra: 'A música deixa a cidade um pouco mais alegre.' },
+    praca: { name: 'Praça', cost: 120, lvl: 1, deco: true, joy: 3, shape: true, body: '#8ac060', roof: '#c8b8a0', h: 0, desc: 'Bancos, postes de luz e uma árvore para descansar.' },
+    jardim: { name: 'Jardim florido', cost: 150, lvl: 1, deco: true, joy: 3, shape: true, body: '#7cbf4a', roof: '#f08ac0', h: 0, desc: 'Canteiros de flores e arbustos bem cuidados.' },
+    fonte: { name: 'Fonte', cost: 200, lvl: 2, deco: true, joy: 4, shape: true, body: '#c8c8d0', roof: '#7ac8f0', h: 0, desc: 'Água limpinha jorrando e pombos para alimentar.' },
+    mural: { name: 'Mural grafitado', cost: 170, lvl: 2, deco: true, joy: 3, shape: true, body: '#e8d8c0', roof: '#e04fa0', h: 0, desc: 'Um muro velho pintado pelos artistas da cidade.' },
+    parquinho: { name: 'Parquinho', cost: 280, lvl: 3, deco: true, joy: 5, shape: true, body: '#f6d05b', roof: '#3f8ae0', h: 0, desc: 'Balanço, escorregador e caixa de areia.' },
+    coreto: { name: 'Coreto', cost: 380, lvl: 4, deco: true, joy: 6, shape: true, body: '#f4f0e4', roof: '#2f8a5a', h: 0, desc: 'Um coreto onde a banda da cidade toca no fim da tarde.' },
+    estatua: { name: 'Estátua dos heróis', premium: 6, cost: 400, lvl: 3, deco: true, joy: 8, shape: true, body: '#b0b4b8', roof: '#8a9096', h: 0, desc: 'Especial. Homenagem a quem defende o portão. Muita alegria.' },
+  });
+  const kindOf = k => (BLD[k].deco ? 'deco' : BLD[k].home ? 'home' : 'biz');
+  // alegria da cidade: decorações (e alguns negócios) contra o tamanho da população
+  const joyOf = L => (BLD[L.type].joy || 0) * (1 + 0.5 * (L.lvl - 1));
+  const decoJoy = () => S.lots.reduce((a, L, i) => a + (L && i < S.lotsOpen && !(L.build > 0) && BLD[L.type].joy ? joyOf(L) : 0), 0);
+  const happiness = () => clamp(0.5 + 0.5 * decoJoy() / (3 + S.people.length) + (S.joyBoost > 0 ? 0.15 : 0), 0, 1);
+  const happyMul = () => 0.85 + 0.3 * happiness();
+  const happyTxt = () => { const h = happiness(); return `${Math.round(h * 100)}% ${h >= 0.85 ? '😄' : h >= 0.6 ? '🙂' : '😐'}`; };
+  HOOK.biz.push(() => happyMul());
+  HOOK.update.push(dt => { if (S.joyBoost > 0) S.joyBoost = Math.max(0, S.joyBoost - dt); });
+  function decoHTML(i, L, d, upBtn) {
+    return `<h2>${d.name} <span class="lvl">nível ${L.lvl} · decoração</span></h2>
+      <p>${d.desc}</p>
+      <p><b>+${+joyOf(L).toFixed(1)} de alegria.</b> ${L.lvl < 3 ? `No próximo nível: +${+(d.joy * (1 + 0.5 * L.lvl)).toFixed(1)}.` : ''}</p>
+      <p class="note">Alegria da cidade: ${happyTxt()}. Moradores felizes vendem mais (agora ${Math.round((happyMul() - 1) * 100) >= 0 ? '+' : ''}${Math.round((happyMul() - 1) * 100)}% nas vendas). Quanto mais gente na cidade, mais decoração é preciso.</p>
+      <div class="row">${upBtn}</div>`;
+  }
+  MORE.push({ id: 'joy', label: `Alegria da cidade`, desc: () => `Agora: ${happyTxt()}. Decorações como praças, jardins e fontes deixam os moradores felizes, e moradores felizes vendem mais.`, open: () => { closeSheet(); setView('town'); }, btn: 'Ver a cidade', cls: 'alt' });
+
+  // ícones novos para os telhados (mesmo sistema de drawIcon)
+  const ICON_X = {
+    hotdog(O, hl) {
+      ell(0, -16, 30, 10); O('#f0c070'); ctx.beginPath(); ctx.moveTo(-34, -20); ctx.quadraticCurveTo(0, -36, 34, -20); ctx.quadraticCurveTo(36, -14, 30, -12); ctx.quadraticCurveTo(0, -26, -30, -12); ctx.quadraticCurveTo(-36, -14, -34, -20); ctx.closePath(); O('#c8503a');
+      ctx.strokeStyle = '#ffd23f'; ctx.lineWidth = 3; ctx.beginPath(); for (let k = -24; k <= 24; k += 8) { ctx.moveTo(k, -27 + Math.abs(k) * 0.12); ctx.lineTo(k + 4, -23 + Math.abs(k) * 0.12); } ctx.stroke(); hl(-12, -20, 6, 2);
+    },
+    acai(O, hl) {
+      ctx.beginPath(); ctx.moveTo(-28, -30); ctx.lineTo(28, -30); ctx.quadraticCurveTo(26, -2, 0, -2); ctx.quadraticCurveTo(-26, -2, -28, -30); ctx.closePath(); O('#ffffff');
+      ell(0, -30, 28, 7); O('#5a1a6a', 1.6); ctx.fillStyle = '#7a3a9a'; ell(-6, -32, 14, 4); ctx.fill();
+      ctx.fillStyle = '#e8c070'; for (let k = 0; k < 9; k++) { circle(-16 + k * 4, -33 + (k % 2) * 2, 1.8); ctx.fill(); }
+      for (const dx of [-12, 4]) { ell(dx, -38, 7, 4); O('#fff0a0', 1.3); }
+      circle(14, -40, 5); O('#e0302a', 1.3); hl(-14, -18, 4, 7);
+    },
+    paw(O, hl) {
+      ell(0, -16, 17, 14); O('#f08a3c'); for (const [dx, dy] of [[-17, -36], [-6, -44], [7, -44], [18, -36]]) { ell(dx, dy, 6, 7.5); O('#f08a3c'); } hl(-6, -20, 5, 4);
+    },
+    kettle(O, hl) {
+      ctx.beginPath(); ctx.arc(0, -38, 14, Math.PI * 0.95, Math.PI * 2.05); ctx.lineWidth = 9; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 5; ctx.strokeStyle = '#4a4a5a'; ctx.stroke();
+      circle(0, -18, 19); O('#3a3a4a'); ctx.fillStyle = '#e04f4f'; ctx.fillRect(-12, -22, 24, 7); text('20', 0, -18, 7, '#ffffff', 'center', null, 'Luckiest Guy', 400); hl(-8, -26, 4, 5);
+    },
+    anchor(O) {
+      ctx.lineCap = 'round';
+      const path = () => { ctx.beginPath(); circle(0, -46, 6); ctx.moveTo(0, -40); ctx.lineTo(0, -4); ctx.moveTo(-14, -32); ctx.lineTo(14, -32); ctx.moveTo(-24, -18); ctx.quadraticCurveTo(-20, -2, 0, -4); ctx.quadraticCurveTo(20, -2, 24, -18); };
+      path(); ctx.lineWidth = 10; ctx.strokeStyle = INK; ctx.stroke(); path(); ctx.lineWidth = 6; ctx.strokeStyle = '#4ac0c0'; ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-6, -24); ctx.bezierCurveTo(-26, -40, -26, -12, -6, -16); ctx.closePath(); O('#e04f7a', 1.6);
+    },
+    bike(O) {
+      for (const wx of [-20, 20]) { circle(wx, -14, 13); ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 3; ctx.strokeStyle = '#3a3a44'; ctx.stroke(); circle(wx, -14, 2.5); O('#c8d0d8', 1); }
+      ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(-20, -14); ctx.lineTo(-4, -14); ctx.lineTo(10, -32); ctx.lineTo(-10, -32); ctx.closePath(); ctx.moveTo(10, -32); ctx.lineTo(20, -14); ctx.moveTo(-10, -32); ctx.lineTo(-12, -38); ctx.moveTo(10, -32); ctx.lineTo(12, -40);
+      ctx.lineWidth = 6; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 3.5; ctx.strokeStyle = '#4ac0c0'; ctx.stroke();
+      rr(-18, -41, 12, 4, 2); O('#3a3a44', 1.2); rr(8, -42, 10, 3, 1.5); O('#3a3a44', 1.2);
+    },
+    flower(O, hl) {
+      ctx.beginPath(); ctx.moveTo(-14, -18); ctx.lineTo(14, -18); ctx.lineTo(10, 0); ctx.lineTo(-10, 0); ctx.closePath(); O('#c8603a');
+      ctx.strokeStyle = INK; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(0, -18); ctx.lineTo(0, -34); ctx.stroke(); ctx.strokeStyle = '#4a9a3a'; ctx.lineWidth = 2.4; ctx.stroke();
+      ell(-8, -26, 7, 3); O('#5bbf4a', 1.2);
+      for (let k = 0; k < 6; k++) { const a = k / 6 * TAU; ell(Math.cos(a) * 9, -42 + Math.sin(a) * 9, 7, 7); O('#f07aa0', 1.4); }
+      circle(0, -42, 6); O('#ffd23f', 1.4); hl(-2, -44, 2, 1.5);
+    },
+    guitar(O) {
+      ctx.save(); ctx.rotate(-0.5);
+      rr(-3, -62, 6, 34, 2); O('#6a3a1a', 1.6); rr(-5, -68, 10, 9, 2); O('#3a2a1a', 1.4);
+      ctx.beginPath(); ctx.ellipse(0, -16, 15, 13, 0, 0, TAU); ctx.ellipse(0, -32, 11, 9, 0, 0, TAU); O('#f08a3c');
+      circle(0, -24, 4.5); O('#3a2a1a', 1.2); rr(-7, -12, 14, 3, 1); O('#3a2a1a', 1);
+      ctx.restore();
+    },
+    basket(O, hl) {
+      ctx.beginPath(); ctx.arc(0, -26, 22, Math.PI, TAU); ctx.lineWidth = 7; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 4; ctx.strokeStyle = '#b8743e'; ctx.stroke();
+      for (const [dx, dy, c] of [[-12, -28, '#e04f4f'], [0, -32, '#ffd23f'], [12, -28, '#7cbf4a'], [-5, -24, '#f08a3c'], [7, -24, '#c050a0']]) { circle(dx, dy, 7); O(c, 1.4); }
+      ctx.beginPath(); ctx.moveTo(-26, -24); ctx.lineTo(26, -24); ctx.lineTo(20, 0); ctx.lineTo(-20, 0); ctx.closePath(); O('#d8964e');
+      ctx.strokeStyle = '#8a5a2a'; ctx.lineWidth = 1.2; for (let k = -18; k <= 18; k += 6) { ctx.beginPath(); ctx.moveTo(k, -24); ctx.lineTo(k * 0.8, 0); ctx.stroke(); } hl(-12, -14, 4, 3);
+    },
+  };
+
+  // fachada de loja montada por partes: cada comércio novo escolhe material, telhado, toldo e enfeites
+  function genShop(o, s) {
+    const { i, x, cx, L, d, nf, t, D } = o, G = GROUND;
+    shadow(cx, G + 2, 64, 6);
+    const bx = x + 8, bw = 114, gH = 90, trim = D(s.trim);
+    wallMaterial({ mat: s.mat, wall: s.wall }, bx, G - gH, bw, gH, nf, srand(i * 13 + 7));
+    let top = BZ.floors(o, bx, bw, G - gH, s.mat, s.wall, trim);
+    if (s.neon) { rr(cx - (bw - 20) / 2, G - gH + 4, bw - 20, 18, 3); ink(D('#1a1a24'), 1.5); neon(cx, G - gH + 13.5, s.neon, s.neonC, t, nf, 10); }
+    else BZ.sign(cx, G - gH + 6, bw - 20, 14, d.name.toUpperCase(), s.signBg || s.trim, s.signFg || '#fff4e0', D, d.name.length > 16 ? 6 : 7);
+    BZ.win(o, bx + 8, G - 62, 64, 44, trim);
+    BZ.door(o, bx + bw - 32, G - 56, 24, 56, trim, s.door || s.trim);
+    if (s.awning) BZ.awning(bx + 4, bx + 76, G - 74, 10, s.awning[0], s.awning[1], D);
+    if (s.extra) s.extra(o, { bx, bw, gH, top, G });
+    let ib;
+    if (s.roof === 'hip') { BZ.hip(bx, top, bw, 20, s.roofC, D); ib = top - 20; }
+    else if (s.roof === 'arch') { ctx.beginPath(); ctx.moveTo(bx - 6, top + 2); ctx.quadraticCurveTo(cx, top - 34, bx + bw + 6, top + 2); ctx.closePath(); ink(D(s.roofC), 2); ib = top - 16; }
+    else { rr(bx - 5, top - 8, bw + 10, 10, 2); ink(D(s.roofC || s.trim), 1.8); ib = top - 8; }
+    drawIcon(s.icon, cx, ib + 1, t);
+    return { ib: ib - 52, barY: G - gH + 26 };
+  }
+  const neon = (x, y, label, c, t, nf, size = 8) => { const on = Math.sin(t * 3 + x) > -0.85; ctx.save(); if (on) { ctx.shadowColor = c; ctx.shadowBlur = 8 + 6 * nf; } text(label, x, y, size, on ? c : tint(c, -0.5), 'center', '#1a1a24', 'Luckiest Guy', 400); ctx.restore(); };
+  const lampPost = (px, nf, t, h = 64) => {
+    const G = GROUND; rr(px - 2, G - h, 4, h, 1); ink('#3a3a44', 1.2);
+    ctx.beginPath(); ctx.moveTo(px - 8, G - h - 2); ctx.lineTo(px + 8, G - h - 2); ctx.lineTo(px + 5, G - h - 14); ctx.lineTo(px - 5, G - h - 14); ctx.closePath(); ink('#2a2a34', 1.4);
+    ctx.fillStyle = mix('#fff4c0', '#ffe680', nf); ctx.fillRect(px - 4, G - h - 12, 8, 9);
+    if (nf > 0.05) { const g = ctx.createRadialGradient(px, G - h - 8, 2, px, G - h - 8, 46); g.addColorStop(0, `rgba(255,230,140,${0.5 * nf})`); g.addColorStop(1, 'rgba(255,230,140,0)'); ctx.fillStyle = g; ctx.fillRect(px - 46, G - h - 54, 92, 92); }
+  };
+  const tree = (tx, k, D, leaf = '#5aa83a') => {
+    const G = GROUND; rr(tx - 4 * k, G - 40 * k, 8 * k, 40 * k, 2); ink(D('#7a5034'), 1.4);
+    for (const [dx, dy, r] of [[-14, -48, 16], [14, -50, 15], [0, -64, 19], [0, -46, 15]]) { circle(tx + dx * k, G + dy * k, r * k); const g = ctx.createRadialGradient(tx + dx * k - 5, G + dy * k - 6, 2, tx + dx * k, G + dy * k, r * k); g.addColorStop(0, D(tint(leaf, 0.25))); g.addColorStop(1, D(leaf)); ctx.fillStyle = g; ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke(); }
+  };
+  const bench = (bxx, D) => { const G = GROUND; rr(bxx - 16, G - 14, 32, 4, 1); ink(D('#a0703e'), 1.2); rr(bxx - 16, G - 24, 32, 4, 1); ink(D('#a0703e'), 1.2); ctx.strokeStyle = D('#3a3a44'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(bxx - 13, G - 10); ctx.lineTo(bxx - 13, G); ctx.moveTo(bxx + 13, G - 10); ctx.lineTo(bxx + 13, G); ctx.moveTo(bxx - 13, G - 24); ctx.lineTo(bxx - 13, G - 14); ctx.moveTo(bxx + 13, G - 24); ctx.lineTo(bxx + 13, G - 14); ctx.stroke(); };
+  const flowerBed = (fx, fw, D, cols = ['#f07aa0', '#ffd23f', '#e04f4f', '#c86bd6', '#ffffff']) => {
+    const G = GROUND; rr(fx, G - 8, fw, 8, 2); ink(D('#8a5a3a'), 1.2);
+    ctx.fillStyle = D('#4a9a3a'); for (let k = 4; k < fw; k += 6) { ell(fx + k, G - 10, 4, 4); ctx.fill(); }
+    for (let k = 4; k < fw; k += 7) { ctx.fillStyle = D(cols[(k / 7 | 0) % cols.length]); circle(fx + k + 1, G - 13 - (k % 3), 2.4); ctx.fill(); }
+  };
+  // moradores sem trabalho passeiam pelas decorações
+  const idlers = (i, n) => { const free = S && !previewMode ? S.people.filter(p => p.work === null) : []; return free.filter((p, k) => (p.id + i) % 3 === 0).slice(0, n); };
+
+  Object.assign(SHAPES, {
+    onibus(o) {
+      const { x, cx, L, nf, t, rooms, people, D } = o, G = GROUND;
+      shadow(cx, G + 2, 62, 6);
+      const bx = x + 6, bw = 118, bh = 54, by = G - 14 - bh;
+      rr(bx, by, bw, bh, 9); ctx.fillStyle = grad(0, by, 0, by + bh, D('#ffd860'), D('#e8a820')); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
+      rr(bx + bw - 6, by + 22, 14, bh - 22, 5); ink(D('#f0b830'), 1.8);
+      ctx.fillStyle = D('#2b1d2e'); ctx.fillRect(bx + 2, by + 38, bw - 4, 3); ctx.fillRect(bx + 2, by + 44, bw - 4, 2);
+      text('ESCOLAR', bx + 44, by + 49.5, 6.5, D('#2b1d2e'), 'center', null, 'Luckiest Guy', 400);
+      for (let k = 0; k < 5; k++) {
+        const wx = bx + 8 + k * 20, wy = by + 8;
+        rr(wx, wy, 16, 18, 3); ctx.fillStyle = winFill(nf, wy, 18); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke(); rooms.push({ x: wx, y: wy, w: 16, h: 18 });
+        ctx.fillStyle = D(['#e07a9a', '#7ac0e0', '#a0e07a'][k % 3]); ctx.fillRect(wx + 1, wy + 1, 4, 16);
+      }
+      ctx.save(); rr(bx + 8, by + 8, 98, 18, 3); ctx.clip(); people.slice(0, 3).forEach((p, k) => drawPerson(bx + 20 + k * 38, by + 40, 0.55, p, 0, k % 2 ? -1 : 1, false, { idle: t + p.id })); ctx.restore();
+      rr(bx + bw - 2, by + 4, 10, 14, 3); ctx.fillStyle = winFill(nf, by + 4, 14); ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = INK; ctx.stroke();
+      rr(bx - 4, G - 20, 8, 5, 2); ink(D('#c8ced4'), 1.2); rr(bx + bw + 4, G - 20, 6, 5, 2); ink(D('#c8ced4'), 1.2);
+      for (const wx of [bx + 24, bx + bw - 22]) { circle(wx, G - 10, 10); ink('#2a2a30', 1.8); circle(wx, G - 10, 4.5); ink('#b0b8c0', 1.2); }
+      circle(bx + bw + 6, by + 30, 3); ink('#fff4a0', 1.2);
+      if (L.lvl >= 2) { rr(bx + 20, by - 9, 70, 4, 1); ink(D('#5a5a66'), 1.2); rr(bx + 26, by - 22, 22, 14, 2); ink(D('#3f8ae0'), 1.3); rr(bx + 52, by - 18, 18, 10, 2); ink(D('#d8964e'), 1.3); }
+      if (L.lvl >= 3) { for (const fx of [bx + 8, bx + 48, bx + 88]) { rr(fx, by + 27, 16, 5, 1); ink(D('#8a5a3a'), 1); ctx.fillStyle = D(pick(['#f07aa0', '#ffd23f'])); circle(fx + 5, by + 25, 2.4); ctx.fill(); circle(fx + 11, by + 25, 2.4); ctx.fill(); } }
+      return { ib: by - (L.lvl >= 2 ? 22 : 4) };
+    },
+    vagao(o) {
+      const { x, cx, L, nf, t, rooms, people, D, i } = o, G = GROUND;
+      ctx.fillStyle = D('#6a5a4a'); for (let k = x - 4; k < x + 134; k += 10) ctx.fillRect(k, G - 4, 6, 4);
+      ctx.strokeStyle = D('#8a8a96'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x - 6, G - 5); ctx.lineTo(x + 136, G - 5); ctx.stroke();
+      const bx = x + 6, bw = 118, bh = 58 + (L.lvl - 1) * 4, by = G - 16 - bh;
+      for (const wx of [bx + 16, bx + 34, bx + bw - 34, bx + bw - 16]) { circle(wx, G - 11, 7); ink('#2a2a30', 1.6); circle(wx, G - 11, 2.5); ink('#9aa4ae', 1); }
+      rr(bx, by, bw, bh, 4); ctx.fillStyle = grad(0, by, 0, by + bh, D('#c0503a'), D('#8a3020')); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.strokeStyle = D('rgba(60,15,10,0.45)'); ctx.lineWidth = 1; for (let k = bx + 6; k < bx + bw; k += 6) { ctx.beginPath(); ctx.moveTo(k, by + 3); ctx.lineTo(k, by + bh - 3); ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(bx - 4, by + 2); ctx.quadraticCurveTo(cx, by - 14, bx + bw + 4, by + 2); ctx.closePath(); ink(D('#5a2a20'), 2);
+      for (const wx of [bx + 10, bx + 84]) { rr(wx, by + 12, 24, 20, 2); ctx.fillStyle = winFill(nf, by + 12, 20); ctx.fill(); ctx.lineWidth = 1.8; ctx.strokeStyle = D('#f4e4c4'); ctx.stroke(); rooms.push({ x: wx, y: by + 12, w: 24, h: 20 }); }
+      ctx.save(); rr(bx + 10, by + 12, 24, 20, 2); ctx.clip(); people.slice(0, 1).forEach(p => drawPerson(bx + 22, by + 46, 0.6, p, 0, 1, false, { idle: t + p.id })); ctx.restore();
+      ctx.save(); rr(bx + 84, by + 12, 24, 20, 2); ctx.clip(); people.slice(1, 2).forEach(p => drawPerson(bx + 96, by + 46, 0.6, p, 0, -1, false, { idle: t + p.id })); ctx.restore();
+      rr(cx - 14, by + 10, 28, bh - 12, 2); ink(D('#d8a060'), 1.6); circle(cx + 8, by + bh / 2 + 4, 1.6); ink('#e0b040', 1);
+      text(`B-${String(Math.abs(i) * 7 + 12).padStart(3, '0')}`, bx + 22, by + bh - 10, 7, D('#f4e4c4'), 'center', null, 'Luckiest Guy', 400);
+      if (L.lvl >= 2) { rr(bx + 92, by - 22, 6, 16, 1); ink(D('#3a3a44'), 1.2); const ph = (t * 0.6 + i) % 1; ctx.fillStyle = `rgba(230,230,240,${0.5 * (1 - ph)})`; circle(bx + 95 + ph * 8, by - 28 - ph * 18, 4 + ph * 5); ctx.fill(); }
+      if (L.lvl >= 3) { ctx.strokeStyle = D('#5a3a2a'); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(bx + 10, by - 6); ctx.lineTo(bx + 10, by - 18); ctx.lineTo(bx + 60, by - 18); ctx.lineTo(bx + 60, by - 6); for (let k = bx + 18; k < bx + 60; k += 8) { ctx.moveTo(k, by - 18); ctx.lineTo(k, by - 6); } ctx.stroke(); rr(bx + 26, by - 30, 12, 12, 2); ink('#c0503a', 1.2); circle(bx + 32, by - 34, 7); ink('#5bbf4a', 1.2); }
+      return { ib: by - (L.lvl >= 3 ? 40 : 18) };
+    },
+    barco(o) {
+      const { x, cx, L, nf, t, rooms, people, D } = o, G = GROUND;
+      shadow(cx, G + 2, 58, 6);
+      ctx.strokeStyle = D('#7a5034'); ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(x + 30, G); ctx.lineTo(x + 40, G - 22); ctx.moveTo(x + 100, G); ctx.lineTo(x + 90, G - 22); ctx.stroke();
+      const hy = G - 22, top = hy - 34;
+      ctx.beginPath(); ctx.moveTo(x + 2, top); ctx.lineTo(x + 128, top - 6); ctx.quadraticCurveTo(x + 120, hy + 4, x + 86, hy + 2); ctx.lineTo(x + 30, hy + 2); ctx.quadraticCurveTo(x + 8, hy, x + 2, top); ctx.closePath();
+      ctx.fillStyle = grad(0, top, 0, hy, D('#f8f8f4'), D('#c8ccd0')); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.save(); ctx.clip(); ctx.fillStyle = D('#3f6ab0'); ctx.fillRect(x, hy - 12, 140, 30); ctx.fillStyle = D('#e04f4f'); ctx.fillRect(x, hy - 15, 140, 3); ctx.restore();
+      text('ESPERANÇA', x + 70, top + 12, 7, D('#3f6ab0'), 'center', null, 'Luckiest Guy', 400);
+      for (const px of [x + 22, x + 104]) { circle(px, top + 12, 5); ctx.fillStyle = winFill(nf, top + 7, 10); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = D('#8a949e'); ctx.stroke(); rooms.push({ x: px - 4, y: top + 8, w: 8, h: 8 }); }
+      const cbx = x + 34, cbw = 62, cbh = 32 + (L.lvl - 1) * 8, cby = top - cbh;
+      rr(cbx, cby, cbw, cbh, 4); ink(D('#f4f0e4'), 2);
+      rr(cbx - 4, cby - 6, cbw + 8, 7, 2); ink(D('#3f6ab0'), 1.6);
+      rr(cbx + 6, cby + 8, 22, 16, 3); ctx.fillStyle = winFill(nf, cby + 8, 16); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke(); rooms.push({ x: cbx + 6, y: cby + 8, w: 22, h: 16 });
+      ctx.save(); rr(cbx + 6, cby + 8, 22, 16, 3); ctx.clip(); people.slice(0, 1).forEach(p => drawPerson(cbx + 17, cby + 38, 0.55, p, 0, 1, false, { idle: t + p.id })); ctx.restore();
+      rr(cbx + 36, cby + 8, 18, cbh - 8, 2); ink(D('#a0703e'), 1.4);
+      ctx.strokeStyle = D('#5a4a3a'); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(cbx + 50, cby - 6); ctx.lineTo(cbx + 50, cby - 56); ctx.stroke();
+      const wv = Math.sin(t * 4) * 2; ctx.beginPath(); ctx.moveTo(cbx + 50, cby - 56); ctx.lineTo(cbx + 68, cby - 51 + wv); ctx.lineTo(cbx + 50, cby - 46); ctx.closePath(); ink('#e04f4f', 1.4);
+      people.slice(1, 2).forEach(p => drawPerson(cbx - 12, top, 0.62, p, 0, 1, false, { idle: t + p.id }));
+      if (L.lvl >= 2) { circle(x + 112, top + 18, 7); ctx.lineWidth = 4; ctx.strokeStyle = INK; ctx.stroke(); ctx.lineWidth = 2.5; ctx.strokeStyle = '#ff6a4a'; ctx.stroke(); }
+      if (L.lvl >= 3) { ctx.strokeStyle = D('#c8b88a'); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x + 10, G); ctx.lineTo(x + 18, top); ctx.moveTo(x + 18, G); ctx.lineTo(x + 26, top); for (let yy = G - 6; yy > top; yy -= 7) { const u = (G - yy) / (G - top); ctx.moveTo(x + 10 + 8 * u, yy); ctx.lineTo(x + 18 + 8 * u, yy); } ctx.stroke(); }
+      return { ib: cby - 56 };
+    },
+    domo(o) {
+      const { x, cx, L, nf, t, rooms, people, D } = o, G = GROUND, R = 54 + (L.lvl - 1) * 6;
+      shadow(cx, G + 2, R + 6, 6);
+      ctx.beginPath(); ctx.arc(cx, G, R, Math.PI, TAU); ctx.closePath();
+      ctx.fillStyle = grad(cx - R, 0, cx + R, 0, D('#eef4f6'), D('#a8bcc4')); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.save(); ctx.beginPath(); ctx.arc(cx, G, R, Math.PI, TAU); ctx.closePath(); ctx.clip();
+      ctx.strokeStyle = D('#7a929c'); ctx.lineWidth = 1.2;
+      const rows = 4;
+      for (let r = 1; r <= rows; r++) { const y = G - R * Math.sin(r / (rows + 0.5) * Math.PI / 2); ctx.beginPath(); ctx.moveTo(cx - R, y); ctx.lineTo(cx + R, y); ctx.stroke(); }
+      for (let r = 0; r < rows; r++) {
+        const y0 = G - R * Math.sin(r / (rows + 0.5) * Math.PI / 2), y1 = G - R * Math.sin((r + 1) / (rows + 0.5) * Math.PI / 2), n = 8 - r * 2;
+        for (let k = 0; k <= n; k++) { const xa = cx - R + (2 * R) * k / n, xb = cx - R + (2 * R) * (k + 0.5) / n; ctx.beginPath(); ctx.moveTo(xa, y0); ctx.lineTo(xb, y1); ctx.lineTo(xa + 2 * R / n, y0); ctx.stroke(); }
+      }
+      ctx.fillStyle = 'rgba(74,192,192,0.25)'; for (let k = 0; k < 5; k++) { ctx.beginPath(); const a = cx - R * 0.6 + k * 18; ctx.moveTo(a, G - R * 0.5); ctx.lineTo(a + 10, G - R * 0.72); ctx.lineTo(a + 20, G - R * 0.5); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+      for (const [wx, wy] of [[cx - R * 0.55, G - R * 0.42], [cx + R * 0.32, G - R * 0.46]]) { circle(wx, wy, 8); ctx.fillStyle = winFill(nf, wy - 8, 16); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = D('#4ac0c0'); ctx.stroke(); rooms.push({ x: wx - 6, y: wy - 6, w: 12, h: 12 }); }
+      ctx.beginPath(); ctx.moveTo(cx - 10, G); ctx.lineTo(cx - 10, G - 22); ctx.arc(cx, G - 22, 10, Math.PI, TAU); ctx.lineTo(cx + 10, G); ctx.closePath(); ink(D('#4ac0c0'), 1.8);
+      people.slice(0, 2).forEach((p, k) => drawPerson(cx + (k ? 30 : -30), G + 6, 0.66, p, 0, k ? -1 : 1, false, { idle: t + p.id }));
+      if (L.lvl >= 2) { ctx.save(); ctx.translate(cx + R * 0.5, G - R * 0.8); ctx.rotate(0.6); rr(-14, -6, 28, 10, 1); ink('#2a4a8a', 1.3); ctx.restore(); }
+      if (L.lvl >= 3) { ctx.strokeStyle = '#5a6270'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx, G - R); ctx.lineTo(cx, G - R - 24); ctx.stroke(); ctx.fillStyle = Math.sin(t * 5) > 0 ? '#ff5a5a' : '#7a2a2a'; circle(cx, G - R - 26, 2.5); ctx.fill(); }
+      return { ib: G - R - (L.lvl >= 3 ? 30 : 6) };
+    },
+    igreja(o) {
+      const { x, cx, L, nf, t, rooms, people, D, i } = o, G = GROUND;
+      shadow(cx, G + 2, 64, 6);
+      const nx = x + 38, nw = 86, nh = 70 + (L.lvl - 1) * 14, ny = G - nh;
+      wallMaterial({ mat: 'stone', wall: '#c8b8a0' }, nx, ny, nw, nh, nf, srand(i * 5 + 1));
+      ctx.beginPath(); ctx.moveTo(nx - 6, ny + 2); ctx.lineTo(nx + nw / 2, ny - 30); ctx.lineTo(nx + nw + 6, ny + 2); ctx.closePath(); ink(D('#7a4a3a'), 2);
+      circle(nx + nw / 2, ny + 16, 10); ctx.fillStyle = D('#3a5aa8'); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.strokeStyle = D('#ffd23f'); ctx.lineWidth = 1.2; for (let k = 0; k < 8; k++) { const a = k / 8 * TAU; ctx.beginPath(); ctx.moveTo(nx + nw / 2, ny + 16); ctx.lineTo(nx + nw / 2 + Math.cos(a) * 9, ny + 16 + Math.sin(a) * 9); ctx.stroke(); }
+      for (const wx of [nx + 10, nx + nw - 24]) { ctx.beginPath(); ctx.moveTo(wx, G - 22); ctx.lineTo(wx, G - 50); ctx.arc(wx + 7, G - 50, 7, Math.PI, TAU); ctx.lineTo(wx + 14, G - 22); ctx.closePath(); ctx.fillStyle = winFill(nf, G - 57, 35); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke(); rooms.push({ x: wx, y: G - 52, w: 14, h: 30 }); }
+      ctx.beginPath(); ctx.moveTo(nx + nw / 2 - 12, G); ctx.lineTo(nx + nw / 2 - 12, G - 30); ctx.arc(nx + nw / 2, G - 30, 12, Math.PI, TAU); ctx.lineTo(nx + nw / 2 + 12, G); ctx.closePath(); ink(D('#7a4a2a'), 1.8);
+      const tx = x + 6, tw = 32, th = nh + 34, ty = G - th;
+      wallMaterial({ mat: 'stone', wall: '#b8a890' }, tx, ty, tw, th, nf, srand(i * 5 + 2));
+      ctx.beginPath(); ctx.moveTo(tx - 4, ty + 2); ctx.lineTo(tx + tw / 2, ty - 34); ctx.lineTo(tx + tw + 4, ty + 2); ctx.closePath(); ink(D('#7a4a3a'), 2);
+      rr(tx + 7, ty + 10, 18, 22, 2); ctx.fillStyle = D('#2a2030'); ctx.fill(); ctx.lineWidth = 1.4; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.save(); ctx.translate(tx + tw / 2, ty + 14); ctx.rotate(Math.sin(t * 2) * 0.25); ctx.beginPath(); ctx.moveTo(-6, 12); ctx.quadraticCurveTo(-6, 0, 0, 0); ctx.quadraticCurveTo(6, 0, 6, 12); ctx.closePath(); ink('#e0b040', 1.2); ctx.restore();
+      ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(tx + tw / 2, ty - 34); ctx.lineTo(tx + tw / 2, ty - 50); ctx.moveTo(tx + tw / 2 - 6, ty - 44); ctx.lineTo(tx + tw / 2 + 6, ty - 44); ctx.stroke();
+      ctx.strokeStyle = D('#e8d8b0'); ctx.lineWidth = 1.5; ctx.stroke();
+      people.slice(0, 2).forEach((p, k) => drawPerson(nx + nw / 2 + (k ? 28 : -26), G + 6, 0.66, p, 0, k ? -1 : 1, false, { idle: t + p.id }));
+      return { ib: ty - 52 };
+    },
+    circo(o) {
+      const { x, cx, L, nf, t, rooms, people, D } = o, G = GROUND, h = 92 + (L.lvl - 1) * 14, l = x + 4, r = x + 126;
+      shadow(cx, G + 2, 66, 7);
+      const shape = () => { ctx.beginPath(); ctx.moveTo(l, G); ctx.lineTo(l + 6, G - h * 0.42); ctx.quadraticCurveTo(cx - 20, G - h * 0.62, cx, G - h); ctx.quadraticCurveTo(cx + 20, G - h * 0.62, r - 6, G - h * 0.42); ctx.lineTo(r, G); ctx.closePath(); };
+      shape(); ctx.save(); ctx.clip();
+      for (let k = -8; k < 9; k++) { ctx.beginPath(); ctx.moveTo(cx, G - h); ctx.lineTo(cx + k * 16, G + 10); ctx.lineTo(cx + (k + 0.5) * 16, G + 10); ctx.closePath(); ctx.fillStyle = D(k % 2 ? '#fff4e0' : '#e04f4f'); ctx.fill(); }
+      ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(l, G - h * 0.42, r - l, 6);
+      ctx.restore(); shape(); ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
+      for (let k = 0; k < 9; k++) { ctx.beginPath(); ctx.arc(l + 6 + k * 13.5, G - h * 0.42, 6.5, 0, Math.PI); ctx.fillStyle = D(k % 2 ? '#3f8ae0' : '#f6d05b'); ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = INK; ctx.stroke(); }
+      ctx.beginPath(); ctx.moveTo(cx - 16, G); ctx.lineTo(cx, G - 40); ctx.lineTo(cx + 16, G); ctx.closePath(); ctx.fillStyle = winFill(nf, G - 40, 40); ctx.fill(); ctx.lineWidth = 1.6; ctx.strokeStyle = INK; ctx.stroke(); rooms.push({ x: cx - 10, y: G - 30, w: 20, h: 28 });
+      ctx.beginPath(); ctx.moveTo(cx - 16, G); ctx.quadraticCurveTo(cx - 10, G - 20, cx, G - 40); ctx.lineTo(cx - 22, G); ctx.closePath(); ink(D('#c0392b'), 1.4);
+      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx, G - h); ctx.lineTo(cx, G - h - 18); ctx.stroke();
+      const wv = Math.sin(t * 5) * 2; ctx.beginPath(); ctx.moveTo(cx, G - h - 18); ctx.lineTo(cx + 16, G - h - 13 + wv); ctx.lineTo(cx, G - h - 8); ctx.closePath(); ink('#f6d05b', 1.4);
+      people.slice(0, 3).forEach((p, k) => drawPerson(cx + [-40, 40, -24][k], G + [6, 6, 8][k], 0.64, p, 0, k === 1 ? -1 : 1, false, { idle: t + p.id }));
+      if (L.lvl >= 2) for (let k = 0; k < 10; k++) { const u = k / 9; ctx.fillStyle = (k + Math.floor(t * 3)) % 2 ? '#fff6b0' : '#ffb547'; circle(l + 6 + u * (r - l - 12), G - h * 0.42 - 14 - Math.sin(u * Math.PI) * h * 0.18, 2); ctx.fill(); }
+      if (L.lvl >= 3) { for (const sx of [l - 2, r + 2]) { ctx.beginPath(); ctx.moveTo(sx - 10, G); ctx.lineTo(sx, G - 30); ctx.lineTo(sx + 10, G); ctx.closePath(); ink(D('#3f8ae0'), 1.4); } }
+      return { ib: G - h - 20 };
+    },
+    foodtruck(o) {
+      const { x, cx, L, d, nf, t, rooms, people, D } = o, G = GROUND;
+      shadow(cx, G + 2, 62, 6);
+      const bx = x + 6, bw = 112, bh = 64, by = G - 16 - bh;
+      rr(bx, by, bw, bh, 8); ctx.fillStyle = grad(0, by, 0, by + bh, D('#ff7a5a'), D('#d0402a')); ctx.fill(); ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
+      rr(bx + bw - 4, by + 26, 18, bh - 26, 6); ink(D('#e0573f'), 2); rr(bx + bw, by + 30, 10, 14, 3); ctx.fillStyle = winFill(nf, by + 30, 14); ctx.fill(); ctx.lineWidth = 1.4; ctx.strokeStyle = INK; ctx.stroke();
+      const wx = bx + 12, wy = by + 12, ww = 70, wh = 30;
+      rr(wx, wy, ww, wh, 3); ctx.fillStyle = winFill(nf, wy, wh); ctx.fill(); ctx.lineWidth = 1.8; ctx.strokeStyle = INK; ctx.stroke(); rooms.push({ x: wx, y: wy, w: ww, h: wh });
+      ctx.save(); rr(wx, wy, ww, wh, 3); ctx.clip(); people.slice(0, 3).forEach((p, k) => drawPerson(wx + 14 + k * 22, wy + 40, 0.6, p, 0, k % 2 ? -1 : 1, false, { idle: t + p.id })); ctx.restore();
+      rr(wx - 4, wy + wh - 2, ww + 8, 6, 2); ink(D('#c8d0d8'), 1.4);
+      BZ.awning(wx - 6, wx + ww + 6, wy - 12, 10, '#f6d05b', '#ffffff', D);
+      text('FOOD TRUCK', bx + 46, by + bh - 9, 7, '#fff4e0', 'center', INK, 'Luckiest Guy', 400);
+      for (const wx2 of [bx + 22, bx + bw - 6]) { circle(wx2, G - 11, 11); ink('#2a2a30', 1.8); circle(wx2, G - 11, 4.5); ink('#b0b8c0', 1.2); }
+      rr(x - 4, G - 34, 18, 32, 2); ink(D('#2a3a34'), 1.4); ctx.fillStyle = '#e8f0e0'; for (let k = 0; k < 4; k++) ctx.fillRect(x - 1, G - 29 + k * 6, 12, 1.6);
+      ctx.save(); ctx.translate(cx, by - 4); drawIcon('hotdog', 0, 0, t); ctx.restore();
+      return { ib: by - 46, barY: by + 4 };
+    },
+    acai(o) { return genShop(o, { mat: 'stucco', wall: '#c8a0e0', trim: '#5a1a6a', roof: 'arch', roofC: '#7a3a9a', awning: ['#7a3a9a', '#e8d4f4'], icon: 'acai', extra(o, g) { const { D, t } = o; BZ.topiary(g.bx - 2, D); ctx.strokeStyle = D('#6a6a74'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(g.bx + g.bw + 6, g.G); ctx.lineTo(g.bx + g.bw + 6, g.G - 50); ctx.stroke(); ctx.beginPath(); ctx.moveTo(g.bx + g.bw - 14, g.G - 44); ctx.quadraticCurveTo(g.bx + g.bw + 6, g.G - 66, g.bx + g.bw + 26, g.G - 44); ctx.closePath(); ink(D('#5bbf7a'), 1.6); } }); },
+    feira(o) {
+      const { x, cx, L, d, nf, t, rooms, people, D } = o, G = GROUND;
+      shadow(cx, G + 2, 64, 6);
+      const cols = [['#3f8ae0', '#ffffff'], ['#e04f4f', '#ffffff'], ['#f6d05b', '#f08a3c']];
+      const stalls = Math.min(3, 1 + L.lvl);
+      const sw = 124 / Math.max(2, stalls), produce = [['#e04f4f', '#7cbf4a', '#ffd23f'], ['#f08a3c', '#c050a0', '#7cbf4a'], ['#ffd23f', '#e04f4f', '#f4e4c4']];
+      for (let k = 0; k < Math.max(2, stalls); k++) {
+        const sx = x + 4 + k * sw, top = G - 74 - (k % 2) * 6;
+        ctx.strokeStyle = D('#6a5a4a'); ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(sx + 4, G); ctx.lineTo(sx + 4, top); ctx.moveTo(sx + sw - 6, G); ctx.lineTo(sx + sw - 6, top); ctx.stroke();
+        BZ.awning(sx, sx + sw - 2, top - 4, 14, cols[k % 3][0], cols[k % 3][1], D);
+        const p = people[k]; if (p) drawPerson(sx + sw / 2, G - 22, 0.62, p, 0, k % 2 ? -1 : 1, false, { idle: t + p.id });
+        rr(sx + 2, G - 26, sw - 6, 26, 2); ink(D('#b8743e'), 1.6);
+        ctx.strokeStyle = D('#7a4a24'); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(sx + 2, G - 13); ctx.lineTo(sx + sw - 4, G - 13); ctx.stroke();
+        produce[k % 3].forEach((c, q) => { for (let m = 0; m < 3; m++) { circle(sx + 8 + q * ((sw - 14) / 3) + m * 4, G - 29 - (m % 2) * 3, 3.2); ink(D(c), 0.8); } });
+        rooms.push({ x: sx + 6, y: top + 10, w: sw - 14, h: 30 });
+      }
+      BZ.sign(cx, G - 104, 70, 14, 'FEIRA LIVRE', '#2f8a5a', '#fff4e0', D);
+      ctx.save(); ctx.translate(cx, G - 106); drawIcon('basket', 0, 0, t); ctx.restore();
+      return { ib: G - 156, barY: G - 116 };
+    },
+    bicicletaria(o) { return genShop(o, { mat: 'brick', wall: '#4ac0c0', trim: '#2f6a8a', roof: 'flat', roofC: '#2f6a8a', awning: ['#2f6a8a', '#f4f4f4'], icon: 'bike', extra(o, g) { const { D } = o; for (const bxx of [g.bx - 4, g.bx + g.bw + 2]) { ctx.save(); ctx.translate(bxx, g.G - 2); ctx.scale(0.5, 0.5); drawIcon('bike', 0, 0, 0); ctx.restore(); } } }); },
+    petshop(o) { return genShop(o, { mat: 'siding', wall: '#9fd0f0', trim: '#f08a3c', roof: 'hip', roofC: '#f08a3c', awning: ['#f08a3c', '#ffffff'], icon: 'paw', extra(o, g) { const { D, t } = o; const hx = g.bx + g.bw + 4; ctx.beginPath(); ctx.moveTo(hx - 12, g.G); ctx.lineTo(hx - 12, g.G - 16); ctx.lineTo(hx, g.G - 28); ctx.lineTo(hx + 12, g.G - 16); ctx.lineTo(hx + 12, g.G); ctx.closePath(); ink(D('#c0503a'), 1.4); ctx.beginPath(); ctx.arc(hx, g.G, 6, Math.PI, TAU); ctx.fillStyle = '#2a2030'; ctx.fill(); ell(g.bx - 2, g.G - 3, 8, 3); ink(D('#3f8ae0'), 1.2); } }); },
+    floricultura(o) { return genShop(o, { mat: 'stucco', wall: '#f8d8e0', trim: '#2f8a5a', roof: 'hip', roofC: '#5bbf7a', awning: ['#2f8a5a', '#f8d8e0'], icon: 'flower', extra(o, g) { const { D } = o; for (const [fx, c] of [[g.bx - 4, '#f07aa0'], [g.bx + g.bw - 2, '#ffd23f']]) { rr(fx - 7, g.G - 14, 14, 14, 2); ink(D('#8a5a3a'), 1.2); for (let k = 0; k < 4; k++) { ctx.strokeStyle = D('#4a9a3a'); ctx.lineWidth = 1.4; ctx.beginPath(); ctx.moveTo(fx - 3 + k * 2, g.G - 14); ctx.lineTo(fx - 5 + k * 3, g.G - 26); ctx.stroke(); circle(fx - 5 + k * 3, g.G - 27, 3); ink(D(c), 0.8); } } } }); },
+    academia(o) { return genShop(o, { mat: 'stone', wall: '#5a5a6a', trim: '#e04f4f', roof: 'flat', roofC: '#e04f4f', icon: 'kettle', neon: 'ACADEMIA', neonC: '#ff5a5a', extra(o, g) { const { D } = o; rr(g.bx + g.bw + 2, g.G - 30, 4, 30, 1); ink(D('#3a3a44'), 1); for (const [yy, w] of [[g.G - 30, 16], [g.G - 18, 12]]) { rr(g.bx + g.bw - 4 + 0, yy - 3, 16, 3, 1); ink('#8a949e', 1); ell(g.bx + g.bw - 4, yy - 1.5, 2.5, w / 3); ink('#2a2a34', 1); ell(g.bx + g.bw + 12, yy - 1.5, 2.5, w / 3); ink('#2a2a34', 1); } } }); },
+    tatuagem(o) { return genShop(o, { mat: 'brick', wall: '#3a3a4a', trim: '#e04fa0', roof: 'flat', roofC: '#2b1d2e', icon: 'anchor', neon: 'TATTOO', neonC: '#ff6ad0', door: '#2b1d2e', extra(o, g) { const { t } = o; ctx.beginPath(); ctx.moveTo(g.bx + g.bw - 14, g.G - 80); ctx.bezierCurveTo(g.bx + g.bw - 24, g.G - 92, g.bx + g.bw - 34, g.G - 76, g.bx + g.bw - 14, g.G - 66); ctx.bezierCurveTo(g.bx + g.bw + 6, g.G - 76, g.bx + g.bw - 4, g.G - 92, g.bx + g.bw - 14, g.G - 80); ctx.save(); if (Math.sin(t * 2) > -0.7) { ctx.shadowColor = '#ff4a6a'; ctx.shadowBlur = 8; } ctx.lineWidth = 2; ctx.strokeStyle = '#ff4a6a'; ctx.stroke(); ctx.restore(); } }); },
+    estudio(o) { return genShop(o, { mat: 'stucco', wall: '#5a3a8a', trim: '#f6d05b', roof: 'arch', roofC: '#3a2a5a', icon: 'guitar', neon: 'ESTÚDIO AO VIVO', neonC: '#6ae0ff', extra(o, g) { const { D, t } = o; rr(g.bx + g.bw - 2, g.G - 34, 16, 34, 2); ink(D('#2a2a34'), 1.4); circle(g.bx + g.bw + 6, g.G - 24, 5); ink('#4a4a5a', 1.2); circle(g.bx + g.bw + 6, g.G - 10, 3.5); ink('#4a4a5a', 1.2); const ph = (t * 0.8) % 1; ctx.globalAlpha = 1 - ph; text('♪', g.bx + g.bw + 10 + ph * 6, g.G - 44 - ph * 24, 12, '#ffffff', 'center', INK); ctx.globalAlpha = 1; } }); },
+    praca(o) {
+      const { x, cx, L, nf, t, rooms, D, i } = o, G = GROUND;
+      ell(cx, G - 1, 62, 6); ctx.fillStyle = D('#c8b8a0'); ctx.fill();
+      tree(cx, 1 + 0.12 * (L.lvl - 1), D);
+      flowerBed(x + 4, 30, D); flowerBed(x + 96, 30, D);
+      bench(x + 30, D); bench(x + 100, D);
+      lampPost(x + 6, nf, t); lampPost(x + 124, nf, t);
+      if (L.lvl >= 3) { ctx.strokeStyle = D('#3a3a44'); ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(cx + 40, G); ctx.lineTo(cx + 40, G - 30); ctx.stroke(); ell(cx + 40, G - 34, 8, 6); ink('#fff4e0', 1.2); }
+      idlers(i, 2).forEach((p, k) => drawPerson(k ? x + 100 : x + 30, G - 12, 0.62, p, 0, k ? -1 : 1, false, { idle: t + p.id }));
+      return { ib: G - 100 };
+    },
+    jardim(o) {
+      const { x, cx, L, nf, t, D, i } = o, G = GROUND;
+      tree(x + 22, 0.8, D, '#4a9a4a'); tree(x + 108, 0.85 + 0.1 * (L.lvl - 1), D, '#6ab84a');
+      flowerBed(x + 34, 62, D);
+      for (let k = 0; k < L.lvl + 1; k++) BZ.topiary(x + 44 + k * 16, D);
+      ctx.strokeStyle = D('#f4f0e4'); ctx.lineWidth = 2; ctx.beginPath(); for (let k = x; k <= x + 130; k += 10) { ctx.moveTo(k, G); ctx.lineTo(k, G - 12); } ctx.moveTo(x, G - 8); ctx.lineTo(x + 130, G - 8); ctx.stroke();
+      lampPost(cx, nf, t, 54);
+      const bf = (t * 0.7 + i) % 1; ctx.fillStyle = '#ffd23f'; ell(x + 40 + Math.sin(t * 2) * 30, G - 50 - Math.sin(t * 3) * 10, 3, 2 + Math.abs(Math.sin(t * 20)) * 2); ctx.fill();
+      idlers(i, 1).forEach(p => drawPerson(x + 80, G + 4, 0.62, p, t, Math.sin(t * 0.3) > 0 ? 1 : -1, false));
+      return { ib: G - 90 };
+    },
+    fonte(o) {
+      const { x, cx, L, nf, t, D, i } = o, G = GROUND;
+      ell(cx, G - 6, 52 + L.lvl * 4, 10); ink(D('#b8b8c0'), 2); ell(cx, G - 9, 46 + L.lvl * 4, 7); ctx.fillStyle = D('#7ac8f0'); ctx.fill();
+      rr(cx - 50 - L.lvl * 4, G - 12, 100 + L.lvl * 8, 10, 4); ink(D('#c8c8d0'), 1.8);
+      rr(cx - 5, G - 50, 10, 40, 2); ink(D('#d8d8e0'), 1.6); ell(cx, G - 50, 20, 5); ink(D('#c8c8d0'), 1.6);
+      if (L.lvl >= 2) { rr(cx - 3, G - 76, 6, 26, 2); ink(D('#d8d8e0'), 1.4); ell(cx, G - 76, 11, 3.5); ink(D('#c8c8d0'), 1.4); }
+      const topY = L.lvl >= 2 ? G - 80 : G - 54;
+      ctx.strokeStyle = 'rgba(160,215,245,0.85)'; ctx.lineWidth = 2;
+      for (let k = 0; k < 6; k++) { const s = (k % 2 ? 1 : -1) * (12 + k * 4), ph = (t * 1.2 + k * 0.17) % 1; ctx.beginPath(); ctx.moveTo(cx, topY); ctx.quadraticCurveTo(cx + s * 0.5, topY - 22, cx + s, G - 12); ctx.stroke(); ctx.fillStyle = '#e8f6ff'; circle(cx + s * ph, topY - 22 * Math.sin(ph * Math.PI) + (G - 12 - topY) * ph * ph, 1.8); ctx.fill(); }
+      for (const [px, f] of [[x + 14, 1], [x + 116, -1]]) { const hop = Math.abs(Math.sin(t * 3 + px)) * 2; ell(px, G - 4 - hop, 6, 4); ink(D('#9aa0b0'), 1.2); circle(px + 5 * f, G - 8 - hop, 3); ink(D('#9aa0b0'), 1.1); ctx.fillStyle = '#f08a3c'; ctx.fillRect(px + 7 * f - (f < 0 ? 2 : 0), G - 8 - hop, 2, 1.5); }
+      lampPost(x + 2, nf, t); lampPost(x + 128, nf, t);
+      return { ib: topY - 30 };
+    },
+    mural(o) {
+      const { x, cx, L, nf, t, D, i } = o, G = GROUND, h = 70 + (L.lvl - 1) * 14, wy = G - h;
+      wallMaterial({ mat: 'brick', wall: '#e8d8c0' }, x + 6, wy, 118, h, nf, srand(i * 3 + 9));
+      ctx.save(); rr(x + 10, wy + 6, 110, h - 12, 3); ctx.clip();
+      const rng = srand(i * 11 + 4), pal = ['#e04fa0', '#3f8ae0', '#f6d05b', '#5bbf7a', '#f08a3c', '#a050e0'];
+      for (let k = 0; k < 9; k++) { ctx.fillStyle = D(pal[k % pal.length]); circle(x + 10 + rng() * 110, wy + 6 + rng() * (h - 12), 10 + rng() * 22); ctx.fill(); }
+      ctx.restore();
+      ctx.save(); ctx.translate(cx, wy + h / 2); ctx.rotate(-0.08);
+      ctx.beginPath(); ctx.moveTo(0, 8); ctx.bezierCurveTo(-26, -10, -14, -26, 0, -12); ctx.bezierCurveTo(14, -26, 26, -10, 0, 8); ink(D('#e0302a'), 1.6);
+      text('BARRICADA', 0, 18, 11, D('#ffffff'), 'center', INK, 'Luckiest Guy', 400);
+      ctx.restore();
+      rr(x + 4, wy - 4, 122, 6, 2); ink(D('#b8a890'), 1.4);
+      for (const [px, c] of [[x + 14, '#e04fa0'], [x + 24, '#3f8ae0']]) { rr(px - 4, G - 10, 8, 10, 1); ink(D(c), 1.2); }
+      if (L.lvl >= 2) { ctx.strokeStyle = D('#c8a060'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 104, G); ctx.lineTo(x + 112, wy + 10); ctx.moveTo(x + 116, G); ctx.lineTo(x + 122, wy + 10); for (let yy = G - 8; yy > wy + 14; yy -= 9) { const u = (G - yy) / (G - wy - 10); ctx.moveTo(x + 104 + 8 * u, yy); ctx.lineTo(x + 116 + 6 * u, yy); } ctx.stroke(); }
+      const p = idlers(i, 1)[0]; if (p) drawPerson(x + 92, G, 0.66, p, 0, -1, false, { idle: t + p.id, gun: false });
+      return { ib: wy - 6 };
+    },
+    parquinho(o) {
+      const { x, cx, L, nf, t, D, i } = o, G = GROUND;
+      ell(x + 100, G - 3, 26, 5); ctx.fillStyle = D('#e8d090'); ctx.fill();
+      ctx.strokeStyle = D('#3f8ae0'); ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(x + 6, G); ctx.lineTo(x + 20, G - 74); ctx.lineTo(x + 34, G); ctx.moveTo(x + 46, G); ctx.lineTo(x + 60, G - 74); ctx.lineTo(x + 74, G); ctx.moveTo(x + 18, G - 72); ctx.lineTo(x + 62, G - 72); ctx.stroke();
+      for (const [sx, ph] of [[x + 32, 0], [x + 50, 1.6]]) { const a = Math.sin(t * 2.2 + ph) * 0.45; ctx.save(); ctx.translate(sx, G - 72); ctx.rotate(a); ctx.strokeStyle = D('#5a5a66'); ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(-5, 0); ctx.lineTo(-5, 52); ctx.moveTo(5, 0); ctx.lineTo(5, 52); ctx.stroke(); rr(-8, 50, 16, 4, 1); ink(D('#e04f4f'), 1.2); ctx.restore(); }
+      const kids = idlers(i, 2); kids.forEach((p, k) => { const a = Math.sin(t * 2.2 + k * 1.6) * 0.45, sx = x + 32 + k * 18; drawPerson(sx + Math.sin(a) * 52, G - 72 + Math.cos(a) * 52, 0.5, p, 0, 1, false, {}); });
+      ctx.beginPath(); ctx.moveTo(x + 84, G - 50); ctx.lineTo(x + 124, G - 4); ctx.lineTo(x + 130, G - 4); ctx.lineTo(x + 92, G - 52); ctx.closePath(); ink(D('#f6d05b'), 1.6);
+      ctx.strokeStyle = D('#3a3a44'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 84, G); ctx.lineTo(x + 84, G - 52); ctx.moveTo(x + 94, G); ctx.lineTo(x + 94, G - 52); for (let yy = G - 8; yy > G - 50; yy -= 9) { ctx.moveTo(x + 84, yy); ctx.lineTo(x + 94, yy); } ctx.stroke();
+      rr(x + 80, G - 56, 18, 5, 1); ink(D('#e04f4f'), 1.2);
+      if (L.lvl >= 2) { ctx.strokeStyle = D('#5bbf7a'); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x + 100, G - 4); ctx.lineTo(x + 112, G - 4); ctx.stroke(); rr(x + 96, G - 12, 8, 8, 1); ink(D('#e04f4f'), 1); }
+      lampPost(x + 128, nf, t, 58);
+      return { ib: G - 100 };
+    },
+    coreto(o) {
+      const { x, cx, L, nf, t, D, i } = o, G = GROUND;
+      shadow(cx, G + 2, 60, 6);
+      rr(x + 10, G - 16, 110, 16, 3); ink(D('#d8d0c0'), 1.8);
+      for (let k = 0; k < 5; k++) { const px = x + 16 + k * 24.5; rr(px - 2.5, G - 74, 5, 58, 1); ink(D('#f4f0e4'), 1.4); }
+      ctx.strokeStyle = D('#f4f0e4'); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(x + 14, G - 30); ctx.lineTo(x + 116, G - 30); for (let k = x + 18; k < x + 116; k += 6) { ctx.moveTo(k, G - 30); ctx.lineTo(k, G - 17); } ctx.stroke();
+      const band = idlers(i, 3);
+      band.forEach((p, k) => drawPerson(x + 38 + k * 26, G - 17, 0.62, p, 0, k === 2 ? -1 : 1, false, { idle: t * 2 + k, gun: false }));
+      ctx.beginPath(); ctx.moveTo(x + 2, G - 72); ctx.quadraticCurveTo(cx, G - 112 - L.lvl * 4, x + 128, G - 72); ctx.closePath(); ink(D('#2f8a5a'), 2);
+      ctx.beginPath(); for (let k = 0; k < 9; k++) { ctx.moveTo(x + 4 + k * 15.5, G - 72); ctx.arc(x + 11.75 + k * 15.5, G - 72, 7.75, Math.PI, 0, true); } ctx.fillStyle = D('#f4f0e4'); ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = INK; ctx.stroke();
+      ctx.strokeStyle = INK; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(cx, G - 108 - L.lvl * 4); ctx.lineTo(cx, G - 124 - L.lvl * 4); ctx.stroke(); circle(cx, G - 126 - L.lvl * 4, 3.5); ink('#ffd23f', 1.2);
+      if (band.length) { const ph = (t * 0.7) % 1; ctx.globalAlpha = 1 - ph; text(ph < 0.5 ? '♪' : '♫', cx + 18 + ph * 14, G - 60 - ph * 30, 13, '#ffffff', 'center', INK); ctx.globalAlpha = 1; }
+      if (nf > 0.1) for (let k = 0; k < 9; k++) { ctx.fillStyle = (k + Math.floor(t * 2)) % 2 ? '#ffe680' : '#ffb547'; circle(x + 10 + k * 14, G - 70, 1.8); ctx.fill(); }
+      return { ib: G - 130 - L.lvl * 4 };
+    },
+    estatua(o) {
+      const { x, cx, L, nf, t, D } = o, G = GROUND;
+      flowerBed(x + 8, 34, D); flowerBed(x + 88, 34, D);
+      rr(cx - 24, G - 40, 48, 40, 3); ink(D('#c8c0b0'), 2); rr(cx - 30, G - 46, 60, 8, 2); ink(D('#d8d0c0'), 1.6); rr(cx - 30, G - 8, 60, 8, 2); ink(D('#b8b0a0'), 1.6);
+      rr(cx - 16, G - 30, 32, 12, 2); ink(D('#c8a050'), 1.2); text('HERÓIS', cx, G - 23.5, 6.5, D('#5a3a10'), 'center', null, 'Luckiest Guy', 400);
+      ctx.save(); ctx.globalAlpha = 1; drawPerson(cx, G - 46, 1.25 + 0.15 * (L.lvl - 1), { name: 'Estátua', skin: '#b8bcc0', shirt: '#a0a6ac', hair: '#8a9096', look: { style: 'helmet', pants: '#9aa0a6' } }, 0, 1, false, { gun: 'rifle' }); ctx.restore();
+      lampPost(x + 4, nf, t); lampPost(x + 126, nf, t);
+      if (Math.sin(t * 1.5) > 0.96) { ctx.fillStyle = '#ffffff'; circle(cx + 6, G - 96, 2); ctx.fill(); }
+      return { ib: G - 120 };
+    },
+  });
 
   // ---------- Laço ----------
   let last = performance.now();
